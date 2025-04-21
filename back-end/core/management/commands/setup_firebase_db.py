@@ -1,197 +1,184 @@
 from django.core.management.base import BaseCommand
 from core.firebase_utils import firebase_config
 from firebase_admin import firestore
-import datetime
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = 'Set up Firebase database structure'
+    help = 'Initialize Firestore'
 
     def handle(self, *args, **options):
-        
         db = firebase_config.get_db()
         
-        if not db:
-            self.stdout.write(self.style.ERROR('Failed to connect to Firebase database'))
-            return
-            
-       
-        # 1. clients
-        db.collection('clients').document('example_client').set({
+        # Clients
+        client_id = 'client_exemple'
+        db.collection('clients').document(client_id).set({
             'username': 'client_test',
-            'email': 'client@example.com',
-            'motDePasse': 'hashed_password_example',
-            'isGuest': False
+            'email': 'client@exemple.com',
+            'motDePasse': 'hashed_password',
+            'isGuest': False,
+            'birthdate': '1990-01-01',
+            'fidelityPoints': 100
         })
-        
-        # 2. tables
-        db.collection('tables').document('1').set({
+
+        # Categories
+        cat1_id, cat2_id = 'cat1', 'cat2'
+        db.collection('categories').document(cat1_id).set({'nomCat': 'Entrées'})
+        db.collection('categories').document(cat2_id).set({'nomCat': 'Plats principaux'})
+
+
+        # Sous-categories
+        sous_cat1_id = 'sous_cat1'
+        sous_cat2_id = 'sous_cat2'
+        db.collection('sous_categories').document(sous_cat1_id).set({
+            'nomSousCat': 'Soupes et Potages',
+            'idCat': cat1_id  # Foreign key to parent category
+        })
+        db.collection('sous_categories').document(sous_cat2_id).set({
+            'nomSousCat': 'Salades et Crudités',
+            'idCat': cat1_id  # Foreign key to parent category
+        })
+
+        # Ingredients
+        ing1_id = 'ing1'
+        db.collection('ingredients').document(ing1_id).set({
+            'nomIng': 'Boeuf',
+            'nbrMax': 50,
+            'nbrMin': 10
+        })
+
+        # Plats 
+        plat1_id = 'plat1'
+        db.collection('plats').document(plat1_id).set({
+            'nom': 'Steak frites',
+            'estimation': 15,
+            'note': 4.5,
+            'description': 'Steak de boeuf grillé avec frites maison',
+            'ingrédients': ['boeuf', 'pommes de terre', 'huile', 'sel'],
+            'quantité': 100,
+            'idCat': cat2_id  
+        })
+
+        # Tables
+        table1_id = 'table1'
+        db.collection('tables').document(table1_id).set({
             'nbrPersonne': 4,
             'etatTable': 'libre'
         })
-        
-        # 3. reservations
-        db.collection('reservations').document('example_reservation').set({
-            'date': firestore.SERVER_TIMESTAMP,
-            'heure': '19:30',
-            'idT': '1',  # Reference to table id
-            'idC': 'example_client'  # Reference to client id
-        })
-        
-        # 4. fidelite
-        db.collection('fidelite').document('example_fidelite').set({
-            'pointsFidelite': 100,
-            'SeuilVIP': 500,
-            'idC': 'example_client'  # Reference to client id
-        })
-        
-        # 5. commandes
-        db.collection('commandes').document('example_commande').set({
-            'montant': 45.50,
-            'dateCreation': firestore.SERVER_TIMESTAMP,
-            'etat': 'en attente',
-            'confirmation': False,
-            'idC': 'example_client'  # Reference to client id
-        })
-        
-        # 6. categorie (needed for plat)
-        db.collection('categorie').document('example_categorie').set({
-            'nomCat': 'Plats principaux'
-        })
-        
-        # 7. plat
-        db.collection('plat').document('example_plat').set({
-            'estimation': 15,  # minutes for preparation
-            'note': 4.5,
-            'description': 'Délicieux steak frites',
-            'ingredients': 'Boeuf, pommes de terre, huile, sel, poivre',
-            'quantite': 100,
-            'idCat': 'example_categorie'  # Reference to categorie id
-        })
-        
-        # 8. commande_plat (junction table)
-        db.collection('commande_plat').document('example_cmd_plat').set({
-            'idCmd': 'example_commande',
-            'idP': 'example_plat',
-            'quantite': 2
-        })
-        
-        # 9. menu
-        db.collection('menu').document('example_menu').set({
-            'nomMenu': 'Menu du jour'
-        })
-        
-        # 10. menu_plat (junction table)
-        db.collection('menu_plat').document('example_menu_plat').set({
-            'idM': 'example_menu',
-            'idP': 'example_plat'
-        })
-        
-        # 11. employe - base employee
-        db.collection('employe').document('example_employe_serveur').set({
+
+        # Employes
+        employe1_id = 'employe1'
+        db.collection('employes').document(employe1_id).set({
             'nomE': 'Dupont',
             'prenomE': 'Jean',
-            'usernameE': 'jean_dupont',
-            'adresseE': '123 rue de Paris',
-            'motDePasseE': 'hashed_password_example',
+            'usernameE': 'jdupont',
+            'adresseE': '15 rue de la Paix, Paris',
+            'motDePasseE': 'hashed_password',
             'role': 'serveur'
         })
-        
-        db.collection('employe').document('example_employe_cuisinier').set({
-            'nomE': 'Martin',
-            'prenomE': 'Pierre',
-            'usernameE': 'pierre_martin',
-            'adresseE': '45 avenue de Lyon',
-            'motDePasseE': 'hashed_password_example',
-            'role': 'cuisinier'
+
+        # Commandes 
+        commande_id = 'commande_exemple'
+        db.collection('commandes').document(commande_id).set({
+            'montant': 45.50,
+            'dateCreation': firestore.SERVER_TIMESTAMP,
+            'etat': 'en_attente',
+            'confirmation': False,
+            'idC': client_id  # Foreign key kept
         })
-        
-        db.collection('employe').document('example_employe_manager').set({
-            'nomE': 'Dubois',
-            'prenomE': 'Marie',
-            'usernameE': 'marie_dubois',
-            'adresseE': '8 boulevard des Fleurs',
-            'motDePasseE': 'hashed_password_example',
-            'role': 'manager'
-        })
-        
-        # 12. cuisinier
-        db.collection('cuisinier').document('example_cuisinier').set({
-            'idE': 'example_employe_cuisinier',  # Reference to employe
-            'dateEmbauche': firestore.SERVER_TIMESTAMP,
-            'niveauExperience': 'Chef'
-        })
-        
-        # 13. cuisinier_menu (junction table)
-        db.collection('cuisinier_menu').document('example_cuisinier_menu').set({
-            'idE': 'example_employe_cuisinier',  # Reference to employe (cuisinier)
-            'idM': 'example_menu',  # Reference to menu
-            'datecreation': firestore.SERVER_TIMESTAMP,
-            'derniereMAJ': firestore.SERVER_TIMESTAMP
-        })
-        
-        # 14. ingredient
-        db.collection('ingredient').document('example_ingredient').set({
-            'nomIng': 'Pommes de terre',
-            'nbrMax': 100,
-            'nbrMin': 20
-        })
-        
-        # 15. stock
-        db.collection('stock').document('example_stock').set({
+
+        # Menus
+        menu1_id = 'menu1'
+        db.collection('menus').document(menu1_id).set({'nomMenu': 'Menu du jour'})
+
+        # Stocks
+        db.collection('stocks').document('stock1').set({
             'capaciteS': 100,
             'SeuilAlerte': 20,
-            'idIng': 'example_ingredient'  # Reference to ingredient
+            'idIng': ing1_id  # Foreign key kept
         })
-        
-        # 16. manager
-        db.collection('manager').document('example_manager').set({
-            'idE': 'example_employe_manager',  # Reference to employe
-            'idRapport': 'example_rapport'  # Reference to rapport_financier
+
+        # Commande_plat
+        db.collection('commande_plat').document('cp1').set({
+            'idCmd': commande_id,  # Foreign key
+            'idP': plat1_id,      # Foreign key
+            'quantité': 2
         })
-        
-        # 17. serveur
-        db.collection('serveur').document('example_serveur').set({
-            'idE': 'example_employe_serveur',  # Reference to employe
-            'dateEmbauche': firestore.SERVER_TIMESTAMP,
-            'zoneAffectation': 'Zone A'
+
+        # Serveur_commande
+        db.collection('serveur_commande').document('sc1').set({
+            'idE': employe1_id,   # Foreign key
+            'idCmd': commande_id  # Foreign key
         })
-        
-        # 18. serveur_commande (junction table)
-        db.collection('serveur_commande').document('example_serveur_commande').set({
-            'idE': 'example_employe_serveur',  # Reference to employe (serveur)
-            'idCmd': 'example_commande'  # Reference to commande
+
+        # Cuisiniers
+        db.collection('cuisiniers').document('cuisinier1').set({
+            'idE': employe1_id,      # Foreign key
+            'dateEmbauche': '2023-01-15'
         })
-        
-        # 19. montantencaisse
-        db.collection('montantencaisse').document('example_montant').set({
-            'dateMontant': firestore.SERVER_TIMESTAMP,
-            'totalEncaisse': 1250.75
+
+        # Fidelite
+        db.collection('fidelite').document('fidele1').set({
+            'pointsFidelite': 150,
+            'SeuilVIP': 500,
+            'idC': client_id  # Foreign key
         })
-        
-        # 20. depenses
-        db.collection('depenses').document('example_depense').set({
-            'dateDep': firestore.SERVER_TIMESTAMP,
-            'totaleDep': 450.25
-        })
-        
-        # 21. rapport_financier
-        db.collection('rapport_financier').document('example_rapport').set({
-            'dateRapport': firestore.SERVER_TIMESTAMP,
-            'beneficeNet': 800.50,
-            'idMontant': 'example_montant',  # Reference to montantencaisse
-            'idDep': 'example_depense'  # Reference to depenses
-        })
-        
-        # 22. recommandation
-        db.collection('recommandation').document('example_recommandation').set({
+
+        # Recommandations
+        reco_id = 'reco1'
+        db.collection('recommandations').document(reco_id).set({
             'date_generation': firestore.SERVER_TIMESTAMP,
-            'idC': 'example_client'  # Reference to client
+            'idC': client_id  # Foreign key
         })
-        
-        # 23. recommandation_plat (junction table)
-        db.collection('recommandation_plat').document('example_recommandation_plat').set({
-            'idR': 'example_recommandation',  # Reference to recommandation
-            'idP': 'example_plat'  # Reference to plat
+
+        # Recommandation_plat
+        db.collection('recommandation_plat').document('rp1').set({
+            'idR': reco_id,    # Foreign key
+            'idP': plat1_id   # Foreign key
         })
+
+        # Managers
+        db.collection('managers').document('manager1').set({
+            'idE': employe1_id,     # Foreign key
+            'idRapport': 'rapport1'
+        })
+
+        # Rapport_financier
+        db.collection('rapport_financier').document('rapport1').set({
+            'dateRapport': '2023-12-31',
+            'beneficeNet': 15000.50,
+            'idMontant': 'montant1',  # Foreign key
+            'idDep': 'depense1'       # Foreign key
+        })
+
+        # Montant_encaisse
+        db.collection('montant_encaisse').document('montant1').set({
+            'dateMontant': '2023-12-31',
+            'totalEncaissé': 45000.75
+        })
+
+        # Depenses
+        db.collection('depenses').document('depense1').set({
+            'dateDep': '2023-12-31',
+            'totaleDep': 30000.25
+        })
+
+        # Cuisinier_menu
+        db.collection('cuisinier_menu').document('cm1').set({
+            'idE': employe1_id,  # Foreign key
+            'idM': menu1_id,     # Foreign key
+            'datecreation': '2023-05-10',
+            'derniereMAJ': '2023-07-20'
+        })
+
+        # Menu_plat
+        db.collection('menu_plat').document('mp1').set({
+            'idM': menu1_id,  # Foreign key
+            'idP': plat1_id   # Foreign key
+        })
+
+        logger.info("Created !")
+        self.stdout.write(self.style.SUCCESS('Firestore initialized successfully'))
         
-        self.stdout.write(self.style.SUCCESS('Successfully created Firebase database'))

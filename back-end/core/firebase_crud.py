@@ -1,249 +1,265 @@
 from firebase_admin import firestore
 from core.firebase_utils import firebase_config
-from typing import Dict, List, Any, Optional, Union
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FirebaseCRUD:
-    """Class for Firebase CRUD operations"""
+    """Complete Firebase CRUD operations matching the MLD"""
     
     def __init__(self):
-        """Initialize with Firebase database connection"""
         self.db = firebase_config.get_db()
     
-    # Generic CRUD 
-    def create_document(self, collection: str, data: Dict[str, Any], doc_id: Optional[str] = None) -> str:
-        """
-        Create a new document in a collection
-        
-        Args:
-            collection: Collection name
-            data: Document data
-            doc_id: Optional document ID (auto-generated if not provided)
-            
-        Returns:
-            Document ID
-        """
+    # ========================
+    # Generic CRUD Operations
+    # ========================
+    def create_doc(self, collection: str, data: Dict, doc_id: Optional[str] = None) -> str:
+        """Create document with optional ID"""
         try:
+            col_ref = self.db.collection(collection)
             if doc_id:
-                doc_ref = self.db.collection(collection).document(doc_id)
+                doc_ref = col_ref.document(doc_id)
                 doc_ref.set(data)
                 return doc_id
-            else:
-                doc_ref = self.db.collection(collection).document()
-                doc_ref.set(data)
-                return doc_ref.id
+            doc_ref = col_ref.add(data)
+            return doc_ref[1].id
         except Exception as e:
-            print(f"Error creating document in {collection}: {e}")
+            logger.error(f"Create failed: {str(e)}")
             raise
-    
-    def get_document(self, collection: str, doc_id: str) -> Dict[str, Any]:
-        """
-        Get a document by ID
-        
-        Args:
-            collection: Collection name
-            doc_id: Document ID
-            
-        Returns:
-            Document data as dict
-        """
+
+    def get_doc(self, collection: str, doc_id: str) -> Dict:
+        """Get document by ID"""
         try:
-            doc_ref = self.db.collection(collection).document(doc_id)
-            doc = doc_ref.get()
-            
-            if doc.exists:
-                return doc.to_dict()
-            else:
-                return None
+            doc = self.db.collection(collection).document(doc_id).get()
+            return doc.to_dict() if doc.exists else None
         except Exception as e:
-            print(f"Error getting document {doc_id} from {collection}: {e}")
+            logger.error(f"Get failed: {str(e)}")
             raise
-    
-    def update_document(self, collection: str, doc_id: str, data: Dict[str, Any]) -> bool:
-        """
-        Update a document
-        
-        Args:
-            collection: Collection name
-            doc_id: Document ID
-            data: Updated fields
-            
-        Returns:
-            Success status
-        """
+
+    def update_doc(self, collection: str, doc_id: str, updates: Dict) -> None:
+        """Update document fields"""
         try:
-            doc_ref = self.db.collection(collection).document(doc_id)
-            doc_ref.update(data)
-            return True
+            self.db.collection(collection).document(doc_id).update(updates)
         except Exception as e:
-            print(f"Error updating document {doc_id} in {collection}: {e}")
+            logger.error(f"Update failed: {str(e)}")
             raise
-    
-    def delete_document(self, collection: str, doc_id: str) -> bool:
-        """
-        Delete a document
-        
-        Args:
-            collection: Collection name
-            doc_id: Document ID
-            
-        Returns:
-            Success status
-        """
+
+    def delete_doc(self, collection: str, doc_id: str) -> None:
+        """Delete document"""
         try:
-            doc_ref = self.db.collection(collection).document(doc_id)
-            doc_ref.delete()
-            return True
+            self.db.collection(collection).document(doc_id).delete()
         except Exception as e:
-            print(f"Error deleting document {doc_id} from {collection}: {e}")
+            logger.error(f"Delete failed: {str(e)}")
             raise
-    
-    def get_all_documents(self, collection: str) -> List[Dict[str, Any]]:
-        """
-        Get all documents in a collection
-        
-        Args:
-            collection: Collection name
-            
-        Returns:
-            List of document data
-        """
-        try:
-            docs = self.db.collection(collection).stream()
-            return [{**doc.to_dict(), "id": doc.id} for doc in docs]
-        except Exception as e:
-            print(f"Error getting all documents from {collection}: {e}")
-            raise
-    
-    def query_documents(self, collection: str, field: str, operator: str, value: Any) -> List[Dict[str, Any]]:
-        """
-        Query documents with a simple filter
-        
-        Args:
-            collection: Collection name
-            field: Field to filter on
-            operator: Comparison operator ('==', '>', '<', '>=', '<=', 'array-contains')
-            value: Value to compare against
-            
-        Returns:
-            List of matching document data
-        """
+
+    def query_collection(self, collection: str, field: str, operator: str, value: Any) -> List[Dict]:
+        """Query collection with conditions"""
         try:
             docs = self.db.collection(collection).where(field, operator, value).stream()
-            return [{**doc.to_dict(), "id": doc.id} for doc in docs]
+            return [doc.to_dict() for doc in docs]
         except Exception as e:
-            print(f"Error querying documents in {collection}: {e}")
+            logger.error(f"Query failed: {str(e)}")
             raise
 
-    
-    # Client
-    def create_client(self, client_data: Dict[str, Any], user_id: str) -> str:
-        """Create a new client"""
-        return self.create_document('clients', client_data, user_id)
-    
-    def get_client(self, client_id: str) -> Dict[str, Any]:
-        """Get client by ID"""
-        return self.get_document('clients', client_id)
-    
-    def update_client(self, client_id: str, client_data: Dict[str, Any]) -> bool:
-        """Update client data"""
-        return self.update_document('clients', client_id, client_data)
-    
-    def delete_client(self, client_id: str) -> bool:
-        """Delete a client"""
-        return self.delete_document('clients', client_id)
-    
-    # Plat
-    def create_plat(self, plat_data: Dict[str, Any]) -> str:
-        """Create a new menu item"""
-        return self.create_document('plat', plat_data)
-    
-    def get_plat(self, plat_id: str) -> Dict[str, Any]:
-        """Get menu item by ID"""
-        return self.get_document('plat', plat_id)
-    
-    def update_plat(self, plat_id: str, plat_data: Dict[str, Any]) -> bool:
-        """Update menu item data"""
-        return self.update_document('plat', plat_id, plat_data)
-    
-    def delete_plat(self, plat_id: str) -> bool:
-        """Delete a menu item"""
-        return self.delete_document('plat', plat_id)
-    
-    def get_plats_by_category(self, category_id: str) -> List[Dict[str, Any]]:
-        """Get all menu items in a category"""
-        return self.query_documents('plat', 'idCat', '==', category_id)
-    
-    # Commande
-    def create_commande(self, commande_data: Dict[str, Any]) -> str:
-        """Create a new order"""
-        return self.create_document('commandes', commande_data)
-    
-    def get_commande(self, commande_id: str) -> Dict[str, Any]:
-        """Get order by ID"""
-        return self.get_document('commandes', commande_id)
-    
-    def update_commande(self, commande_id: str, commande_data: Dict[str, Any]) -> bool:
-        """Update order data"""
-        return self.update_document('commandes', commande_id, commande_data)
-    
-    def delete_commande(self, commande_id: str) -> bool:
-        """Delete an order"""
-        return self.delete_document('commandes', commande_id)
-    
-    def get_client_commandes(self, client_id: str) -> List[Dict[str, Any]]:
-        """Get all orders for a client"""
-        return self.query_documents('commandes', 'idC', '==', client_id)
-    
-    def add_plat_to_commande(self, commande_id: str, plat_id: str, quantity: int) -> str:
-        """Add a menu item to an order"""
-        commande_plat_data = {
-            'idCmd': commande_id,
-            'idP': plat_id,
-            'quantite': quantity
+    # ======================
+    # Client Operations
+    # ======================
+    def create_client(self, client_data: Dict) -> str:
+        """Create client record"""
+        required_fields = ['username', 'email', 'isGuest']
+        if not all(field in client_data for field in required_fields):
+            raise ValueError("Missing required client fields")
+            
+        data = {
+            'username': client_data['username'],
+            'email': client_data['email'],
+            'isGuest': client_data['isGuest'],
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'favorites': client_data.get('favorites', []),
+            'history': client_data.get('history', [])
         }
-        return self.create_document('commande_plat', commande_plat_data)
-    
-    def get_commande_plats(self, commande_id: str) -> List[Dict[str, Any]]:
-        """Get all menu items in an order"""
-        return self.query_documents('commande_plat', 'idCmd', '==', commande_id)
-    
-    # Table
-    def create_table(self, table_data: Dict[str, Any], table_id: Optional[str] = None) -> str:
-        """Create a new table"""
-        return self.create_document('tables', table_data, table_id)
-    
-    def get_table(self, table_id: str) -> Dict[str, Any]:
-        """Get table by ID"""
-        return self.get_document('tables', table_id)
-    
-    def update_table(self, table_id: str, table_data: Dict[str, Any]) -> bool:
-        """Update table data"""
-        return self.update_document('tables', table_id, table_data)
-    
-    def get_available_tables(self) -> List[Dict[str, Any]]:
-        """Get all available tables"""
-        return self.query_documents('tables', 'etatTable', '==', 'libre')
-    
-    # Reservation operations
-    def create_reservation(self, reservation_data: Dict[str, Any]) -> str:
-        """Create a new reservation"""
-        return self.create_document('reservations', reservation_data)
-    
-    def get_reservation(self, reservation_id: str) -> Dict[str, Any]:
-        """Get reservation by ID"""
-        return self.get_document('reservations', reservation_id)
-    
-    def update_reservation(self, reservation_id: str, reservation_data: Dict[str, Any]) -> bool:
-        """Update reservation data"""
-        return self.update_document('reservations', reservation_id, reservation_data)
-    
-    def delete_reservation(self, reservation_id: str) -> bool:
-        """Delete a reservation"""
-        return self.delete_document('reservations', reservation_id)
-    
-    def get_client_reservations(self, client_id: str) -> List[Dict[str, Any]]:
-        """Get all reservations for a client"""
-        return self.query_documents('reservations', 'idC', '==', client_id)
+        return self.create_doc('clients', data)
 
-# global use
+    def update_client_fidelity(self, client_id: str, points: int) -> None:
+        """Update client fidelity points"""
+        self.update_doc('clients', client_id, {'fidelityPoints': points})
+
+    # ======================
+    # Employee Operations
+    # ======================
+    def create_employes(self, employes_data: Dict) -> str:
+        """Create employee record"""
+        required_fields = ['first_name', 'last_name', 'email', 'role']
+        if not all(field in employes_data for field in required_fields):
+            raise ValueError("Missing required employee fields")
+            
+        data = {
+            'first_name': employes_data['first_name'],
+            'last_name': employes_data['last_name'],
+            'email': employes_data['email'],
+            'role': employes_data['role'],
+            'firebase_uid': employes_data.get('firebase_uid'),
+            'hire_date': firestore.SERVER_TIMESTAMP
+        }
+        return self.create_doc('employes', data)
+
+    def create_server(self, employes_id: str) -> str:
+        """Create server-specific record"""
+        return self.create_doc('serveurs', {
+            'employes_id': employes_id,
+            'hire_date': firestore.SERVER_TIMESTAMP
+        })
+
+    def create_chef(self, employes_id: str) -> str:
+        """Create chef-specific record"""
+        return self.create_doc('cuisiniers', {
+            'employes_id': employes_id,
+            'specialties': [],
+            'hire_date': firestore.SERVER_TIMESTAMP
+        })
+
+    def create_manager(self, employes_id: str) -> str:
+        """Create manager-specific record"""
+        return self.create_doc('manager', {
+            'employes_id': employes_id,
+            'permissions': ['manage_staff', 'view_reports']
+        })
+
+    # ======================
+    # Table Operations
+    # ======================
+    def create_table(self, table_data: Dict) -> str:
+        """Create table record"""
+        required_fields = ['number', 'capacity', 'status']
+        if not all(field in table_data for field in required_fields):
+            raise ValueError("Missing required table fields")
+            
+        return self.create_doc('tables', {
+            'number': table_data['number'],
+            'capacity': table_data['capacity'],
+            'status': table_data['status'],
+            'location': table_data.get('location', 'main')
+        })
+
+    def update_table_status(self, table_id: str, status: str) -> None:
+        """Update table status"""
+        valid_statuses = ['available', 'occupied', 'reserved', 'cleaning']
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid status. Must be one of: {valid_statuses}")
+        self.update_doc('tables', table_id, {'status': status})
+
+    # ======================
+    # Reservation Operations
+    # ======================
+    def create_reservation(self, reservation_data: Dict) -> str:
+        """Create reservation record"""
+        required_fields = ['client_id', 'table_id', 'date_time', 'party_size']
+        if not all(field in reservation_data for field in required_fields):
+            raise ValueError("Missing required reservation fields")
+            
+        return self.create_doc('reservations', {
+            'client_id': reservation_data['client_id'],
+            'table_id': reservation_data['table_id'],
+            'date_time': reservation_data['date_time'],
+            'party_size': reservation_data['party_size'],
+            'status': 'confirmed',
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+
+    def update_reservation_status(self, reservation_id: str, status: str) -> None:
+        """Update reservation status"""
+        valid_statuses = ['confirmed', 'seated', 'completed', 'cancelled']
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid status. Must be one of: {valid_statuses}")
+        self.update_doc('reservations', reservation_id, {'status': status})
+
+    # ======================
+    # Menu & Dish Operations
+    # ======================
+    def create_dish(self, dish_data: Dict) -> str:
+        """Create dish record"""
+        required_fields = ['name', 'category', 'price', 'prep_time']
+        if not all(field in dish_data for field in required_fields):
+            raise ValueError("Missing required dish fields")
+            
+        return self.create_doc('dishes', {
+            'name': dish_data['name'],
+            'category': dish_data['category'],
+            'price': dish_data['price'],
+            'prep_time': dish_data['prep_time'],
+            'ingredients': dish_data.get('ingredients', []),
+            'is_available': dish_data.get('is_available', True),
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+
+    def update_dish_availability(self, dish_id: str, is_available: bool) -> None:
+        """Update dish availability"""
+        self.update_doc('dishes', dish_id, {'is_available': is_available})
+
+    # ======================
+    # Order Operations
+    # ======================
+    def create_order(self, order_data: Dict) -> str:
+        """Create order record"""
+        required_fields = ['client_id', 'table_id', 'items', 'total']
+        if not all(field in order_data for field in required_fields):
+            raise ValueError("Missing required order fields")
+            
+        return self.create_doc('orders', {
+            'client_id': order_data['client_id'],
+            'table_id': order_data['table_id'],
+            'items': order_data['items'],
+            'total': order_data['total'],
+            'status': 'received',
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'server_id': order_data.get('server_id'),
+            'notes': order_data.get('notes', '')
+        })
+
+    def update_order_status(self, order_id: str, status: str) -> None:
+        """Update order status"""
+        valid_statuses = ['received', 'preparing', 'ready', 'served', 'paid']
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid status. Must be one of: {valid_statuses}")
+        self.update_doc('orders', order_id, {'status': status})
+
+    # ======================
+    # Inventory Operations
+    # ======================
+    def update_inventory(self, item_id: str, quantity: int) -> None:
+        """Update inventory quantity"""
+        self.update_doc('inventory', item_id, {'quantity': quantity})
+
+    # ======================
+    # Report Operations
+    # ======================
+    def create_daily_report(self) -> str:
+        """Create daily sales report"""
+        # This would be enhanced with actual data aggregation
+        return self.create_doc('reports', {
+            'date': firestore.SERVER_TIMESTAMP,
+            'total_sales': 0,
+            'total_orders': 0,
+            'most_popular_dish': None,
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+    
+    def get_all_docs(self, collection: str) -> List[Dict]:
+        """Get all documents in a collection"""
+        try:
+            docs = self.db.collection(collection).stream()
+            result = []
+            for doc in docs:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                result.append(data)
+            return result
+        except Exception as e:
+            logger.error(f"Get all docs failed: {str(e)}")
+            raise
+
+
+# Singleton instance
 firebase_crud = FirebaseCRUD()

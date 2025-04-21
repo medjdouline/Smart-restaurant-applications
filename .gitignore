@@ -1,0 +1,6 @@
+# Secrets
+.env
+firebase-creds.json
+
+# Virtual environment
+venv/
