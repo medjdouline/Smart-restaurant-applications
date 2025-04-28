@@ -3,14 +3,14 @@ from . import views
 from core.views import guest_login
 
 urlpatterns = [
-    #guest authentication
-    path('auth/guest-login/', guest_login, name='guest_login'),
+    
     # Table
     path('tables/<str:table_id>/', views.get_table_info, name='get_table_info'),
     path('tables/<str:table_id>/request-assistance/', views.request_assistance, name='request_assistance'),
     
     # Profile
     path('profile/', views.client_profile, name='client_table_profile'),
+    #update profile
     
     # Orders
     path('tables/<str:table_id>/orders/create/', views.create_order, name='create_order'),

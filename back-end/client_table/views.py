@@ -9,27 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Authentication
-@api_view(['POST'])
-def guest_login(request):
-    """Create a guest session for table users"""
-    try:
-        from core.firebase_auth import firebase_auth
-        
-        guest_data = firebase_auth.create_guest_session()
-        
-        
-        custom_token = firebase_auth.auth.create_custom_token(guest_data['uid'])
-        
-        return Response({
-            'token': custom_token.decode('utf-8'),
-            'uid': guest_data['uid'],
-            'is_guest': True,
-            'username': guest_data['username']
-        }, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Guest login failed: {str(e)}")
-        return Response({'error': 'Failed to create guest session'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Table specific
 @api_view(['GET'])

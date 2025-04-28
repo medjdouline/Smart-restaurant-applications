@@ -2,19 +2,19 @@ from rest_framework import permissions
 from core.firebase_crud import firebase_crud
 
 class IsClient(permissions.BasePermission):
-    """Allows access only to authenticated non-guest clients"""
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
             
-        # Check claims first
+        # Updated check for completed signup
         if hasattr(request.user, 'claims'):
             return (
                 request.user.claims.get('role') == 'client' and 
-                not request.user.claims.get('is_guest', False)
+                not request.user.claims.get('is_guest', False) and
+                request.user.claims.get('signup_complete', False)  # New check
             )
             
-        # Fallback to Firestore check
+        # Fallback remains the same
         client = firebase_crud.get_doc('clients', request.user.uid)
         return client and not client.get('isGuest', False)
 

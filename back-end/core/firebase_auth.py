@@ -15,61 +15,92 @@ class FirebaseAuth:
         self.db = firebase_config.get_db()
 
     # ======================
-    # Core Authentication
-    # ======================
-    def verify_token(self, id_token: str) -> Dict:
-        """Enhanced token verification with MLD-specific checks"""
-        try:
-            decoded = auth.verify_id_token(id_token)
-            user = auth.get_user(decoded['uid'])
-            
-            # Get additional user data from Firestore based on role
-            user_data = self._get_user_data(user)
-            
-            return {
-                'uid': user.uid,
-                'email': user.email,
-                'claims': user.custom_claims or {},
-                **user_data
-            }
-        except ValueError as e:
-            logger.error(f"Invalid token format: {str(e)}")
-            raise AuthenticationFailed('Invalid token format')
-        except auth.InvalidIdTokenError:
-            logger.error("Invalid ID token")
-            raise AuthenticationFailed('Invalid token')
-        except Exception as e:
-            logger.error(f"Token verification failed: {str(e)}")
-            raise AuthenticationFailed('Authentication failed')
-
-    def _get_user_data(self, user) -> Dict:
-        """Get MLD-specific user data based on role"""
+# Core Authentication
+# ======================
+def verify_token(self, id_token: str) -> Dict:
+    """Enhanced token verification with MLD-specific checks and signup completion validation"""
+    try:
+        decoded = auth.verify_id_token(id_token)
+        user = auth.get_user(decoded['uid'])
         claims = user.custom_claims or {}
-        role = claims.get('role', 'guest')
         
-        if role in ['client', 'guest']:
-            client = firebase_crud.get_doc('clients', user.uid)
+        # Block access for incomplete client signups
+        if claims.get('role') == 'client' and not claims.get('signup_complete', False):
+            logger.warning(f"Incomplete signup attempt by {user.uid}")
+            raise AuthenticationFailed('Complete your signup process first')
+            
+        # Get additional user data from Firestore based on role
+        user_data = self._get_user_data(user)
+        
+        return {
+            'uid': user.uid,
+            'email': user.email,
+            'claims': claims,
+            'signup_complete': claims.get('signup_complete', False),  # New field
+            **user_data
+        }
+        
+    except ValueError as e:
+        logger.error(f"Invalid token format: {str(e)}")
+        raise AuthenticationFailed('Invalid token format')
+    except auth.InvalidIdTokenError:
+        logger.error("Invalid ID token")
+        raise AuthenticationFailed('Invalid token')
+    except auth.ExpiredIdTokenError:
+        logger.error("Expired ID token")
+        raise AuthenticationFailed('Expired token')
+    except auth.RevokedIdTokenError:
+        logger.error("Revoked ID token")
+        raise AuthenticationFailed('Revoked token')
+    except auth.UserDisabledError:
+        logger.error("Disabled user account")
+        raise AuthenticationFailed('Account disabled')
+    except Exception as e:
+        logger.error(f"Token verification failed: {str(e)}")
+        raise AuthenticationFailed('Authentication failed')
+
+def _get_user_data(self, user) -> Dict:
+    """Get MLD-specific user data based on role with signup status"""
+    claims = user.custom_claims or {}
+    role = claims.get('role', 'guest')
+    
+    if role in ['client', 'guest']:
+        client = firebase_crud.get_doc('clients', user.uid)
+        if not client:
+            return {'role': 'guest'}  # Fallback if document missing
+            
+        return {
+            'role': role,
+            'username': client.get('username'),
+            'is_guest': client.get('is_guest', False),
+            'fidelity_points': client.get('fidelity_points', 0),
+            'signup_complete': not client.get('is_guest', True) and claims.get('signup_complete', False),
+            'preferences': client.get('preferences', []),
+            'allergies': client.get('allergies', []),
+            'restrictions': client.get('restrictions', [])
+        }
+        
+    elif role in ['server', 'chef', 'manager']:
+        employee = firebase_crud.query_collection(
+            'employees', 
+            'firebase_uid', 
+            '==', 
+            user.uid
+        )
+        if employee:
             return {
                 'role': role,
-                'username': client.get('username'),
-                'is_guest': client.get('is_guest', False),
-                'fidelity_points': client.get('fidelity_points', 0)
+                'first_name': employee[0].get('first_name'),
+                'last_name': employee[0].get('last_name'),
+                'employee_id': employee[0].id,
+                'signup_complete': True  # Staff accounts are always complete
             }
-        elif role in ['server', 'chef', 'manager']:
-            employee = firebase_crud.query_collection(
-                'employees', 
-                'firebase_uid', 
-                '==', 
-                user.uid
-            )
-            if employee:
-                return {
-                    'role': role,
-                    'first_name': employee[0].get('first_name'),
-                    'last_name': employee[0].get('last_name'),
-                    'employee_id': employee[0].id
-                }
-        return {'role': 'guest'}
+            
+    # Default for guests/unrecognized roles
+    return {
+        'role': 'guest',
+        'signup_complete': False
+    }
 
     # ======================
     # User Registration

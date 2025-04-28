@@ -8,8 +8,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 class FirebaseUser:
-    """Complete user object for all roles"""
-    
     def __init__(self, uid, email, claims):
         self.uid = uid
         self.email = email
@@ -23,6 +21,10 @@ class FirebaseUser:
     @property
     def is_guest(self):
         return self.claims.get('is_guest', False)
+        
+    @property  # Add this new property
+    def is_signup_complete(self):
+        return self.claims.get('signup_complete', False)
 
 class FirebaseAuthentication(authentication.BaseAuthentication):
     """Complete authentication for all roles"""

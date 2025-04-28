@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 class FirebaseCRUD:
@@ -54,15 +55,33 @@ class FirebaseCRUD:
             logger.error(f"Delete failed: {str(e)}")
             raise
 
-    def query_collection(self, collection: str, field: str, operator: str, value: Any) -> List[Dict]:
+    def query_collection(self, collection: str, field: str, operator: str, value: Any,
+                    order_by=None, desc=False, limit=None, where_field=None,
+                    where_op=None, where_value=None) -> List[Dict]:
         """Query collection with conditions"""
         try:
-            docs = self.db.collection(collection).where(field, operator, value).stream()
-            return [doc.to_dict() for doc in docs]
+            query = self.db.collection(collection).where(field, operator, value)
+            
+            # Add optional second where clause
+            if where_field and where_op and where_value is not None:
+                query = query.where(where_field, where_op, where_value)
+                
+            # Add optional ordering
+            if order_by:
+                direction = firestore.Query.DESCENDING if desc else firestore.Query.ASCENDING
+                query = query.order_by(order_by, direction=direction)
+                
+            # Add optional limit
+            if limit:
+                query = query.limit(limit)
+                
+            docs = query.stream()
+            
+            # Include the ID in each document dictionary
+            return [{'id': doc.id, **doc.to_dict()} for doc in docs]
         except Exception as e:
             logger.error(f"Query failed: {str(e)}")
             raise
-
     # ======================
     # Client Operations
     # ======================

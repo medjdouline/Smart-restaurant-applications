@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         db = firebase_config.get_db()
-        
+
         # Clients
         client_id = 'client_exemple'
         db.collection('clients').document(client_id).set({
@@ -20,14 +20,18 @@ class Command(BaseCommand):
             'motDePasse': 'hashed_password',
             'isGuest': False,
             'birthdate': '1990-01-01',
-            'fidelityPoints': 100
+            'gender': 'homme',  # New field
+            'phoneNumber': '+33612345678',  # New field
+            'fidelityPoints': 100,
+            'preferences': ['Soupes et Potages', 'Viandes', 'Pâtisseries'],  # New field - minimum 3 choices
+            'allergies': ['Gluten', 'Arachides'],  # New field - optional
+            'restrictions': ['Sans gluten']  # New field - optional
         })
 
         # Categories
         cat1_id, cat2_id = 'cat1', 'cat2'
         db.collection('categories').document(cat1_id).set({'nomCat': 'Entrées'})
         db.collection('categories').document(cat2_id).set({'nomCat': 'Plats principaux'})
-
 
         # Sous-categories
         sous_cat1_id = 'sous_cat1'
@@ -58,9 +62,10 @@ class Command(BaseCommand):
             'description': 'Steak de boeuf grillé avec frites maison',
             'ingrédients': ['boeuf', 'pommes de terre', 'huile', 'sel'],
             'quantité': 100,
-            'idCat': cat2_id  
+            'idCat': cat2_id,
+            'prix': 24.99  # Add this field
         })
-
+        
         # Tables
         table1_id = 'table1'
         db.collection('tables').document(table1_id).set({
@@ -75,8 +80,12 @@ class Command(BaseCommand):
             'prenomE': 'Jean',
             'usernameE': 'jdupont',
             'adresseE': '15 rue de la Paix, Paris',
+            'emailE': 'jdupont@example.com',  
+            'numeroE': '+33612345678',  
             'motDePasseE': 'hashed_password',
-            'role': 'serveur'
+            'role': 'serveur',
+            'salaire': 2500.00,  
+            'firebase_uid': 'employee_firebase_uid_example'  
         })
 
         # Commandes 
@@ -126,11 +135,22 @@ class Command(BaseCommand):
             'idC': client_id  # Foreign key
         })
 
+         # Reservations
+        reservation_id = 'reservation1'
+        db.collection('reservations').document(reservation_id).set({
+            'client_id': client_id,
+            'table_id': table1_id,
+            'date_time': '2025-04-30T19:30',
+            'party_size': 2,
+            'status': 'confirmed',
+            'created_at': firestore.SERVER_TIMESTAMP
+        })
+
         # Recommandations
         reco_id = 'reco1'
         db.collection('recommandations').document(reco_id).set({
-            'date_generation': firestore.SERVER_TIMESTAMP,
-            'idC': client_id  # Foreign key
+            'date_generation': firestore.SERVER_TIMESTAMP,  
+            'idC': client_id
         })
 
         # Recommandation_plat
@@ -176,9 +196,97 @@ class Command(BaseCommand):
         # Menu_plat
         db.collection('menu_plat').document('mp1').set({
             'idM': menu1_id,  # Foreign key
-            'idP': plat1_id   # Foreign key
+            'idP': plat1_id   
         })
 
+        # Serveurs (updated to match schema)
+        db.collection('serveurs').document('serveur1').set({
+            'idE': employe1_id,  
+            'dateEmbauche': '2023-01-15'
+})
+        message_id = 'msg1'
+        db.collection('messages').document(message_id).set({
+    'sender': 'employe1',  # Could be employee ID or client ID
+    'recipient': 'client_exemple',
+    'content': 'Votre réservation pour demain a été confirmée',
+    'timestamp': firestore.SERVER_TIMESTAMP,
+    'read': False,
+    'createdAt': firestore.SERVER_TIMESTAMP
+})
+
+       
+        db.collection('stats').document('dashboard_stats').set({
+    'totalOrders': 42,
+    'weeklyRevenue': 1250.75,
+    'popularItems': ['plat1', 'plat_101', 'plat_102'], 
+    'updatedAt': firestore.SERVER_TIMESTAMP
+})
+        
+        notification1_id = 'notification1'
+        db.collection('notifications').document(notification1_id).set({
+    'recipient_id': client_id,  
+    'recipient_type': 'client', 
+    'title': 'Welcome to our restaurant!',
+    'message': 'Thank you for joining us. Enjoy special offers and personalized recommendations.',
+    'created_at': firestore.SERVER_TIMESTAMP,
+    'read': False,
+    'type': 'welcome',
+    'priority': 'normal'  
+})
+
+
+        notification2_id = 'notification2'
+        db.collection('notifications').document(notification2_id).set({
+    'recipient_id': employe1_id,  
+    'recipient_type': 'cuisinier',
+    'title': 'Nouvelle commande à préparer',
+    'message': 'Une commande de Steak frites vient d\'être passée.',
+    'created_at': firestore.SERVER_TIMESTAMP,
+    'read': False,
+    'type': 'new_order',
+    'priority': 'high',
+    'related_id': commande_id  
+})
+
+
+        notification3_id = 'notification3'
+        db.collection('notifications').document(notification3_id).set({
+    'recipient_id': employe1_id,  
+    'recipient_type': 'serveur',
+    'title': 'Commande prête',
+    'message': 'La commande pour la table 1 est prête à être servie.',
+    'created_at': firestore.SERVER_TIMESTAMP,
+    'read': False,
+    'type': 'order_ready',
+    'priority': 'high',
+    'related_id': commande_id  
+})
+
+
+        notification4_id = 'notification4'
+        db.collection('notifications').document(notification4_id).set({
+    'recipient_id': employe1_id, 
+    'recipient_type': 'manager',
+    'title': 'Stock faible',
+    'message': 'Le stock de Boeuf est en dessous du seuil d\'alerte.',
+    'created_at': firestore.SERVER_TIMESTAMP,
+    'read': False,
+    'type': 'low_stock',
+    'priority': 'normal',
+    'related_id': ing1_id  
+})
+        db.collection('stats').document('dashboard_stats').set({
+    'totalOrders': 42,
+    'weeklyRevenue': 1250.75,
+    'popularItems': ['plat1', 'plat2', 'plat3'],  # Array of popular item IDs
+    'updatedAt': firestore.SERVER_TIMESTAMP
+})
+        
+    
+
+
+
+        
         logger.info("Created !")
         self.stdout.write(self.style.SUCCESS('Firestore initialized successfully'))
         
