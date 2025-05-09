@@ -58,6 +58,19 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
     def authenticate_header(self, request):
         return 'Bearer realm="api"'
 
+def authenticate_firebase_user(request):
+    """
+    Authenticate a Firebase user from the request.
+    This is a wrapper around FirebaseAuthentication for use in regular Django views.
+    """
+    try:
+        auth = FirebaseAuthentication()
+        user, _ = auth.authenticate(request)
+        return user
+    except Exception as e:
+        logger.error(f"Firebase authentication failed: {str(e)}")
+        return None
+    
 # Add the missing utility functions
 def get_firebase_user(uid: str) -> FirebaseUser:
     """Get Firebase user by UID"""

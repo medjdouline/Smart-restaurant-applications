@@ -1,4 +1,4 @@
-#cpre>urls.py
+#core>urls.py
 from django.urls import path
 from . import views
 
@@ -8,6 +8,7 @@ urlpatterns = [
     path('client/signup/step2/', views.client_signup_step2, name='client_signup_step2'),
     path('client/signup/step3/', views.client_signup_step3, name='client_signup_step3'),
     path('client/signup/step4/', views.client_signup_step4, name='client_signup_step4'),
+     path('client/signup/step5/', views.client_signup_step5, name='client_signup_step5'),
     path('client/login/', views.client_login, name='client_login'),
     
     # Guest endpoint

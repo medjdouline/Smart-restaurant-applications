@@ -45,13 +45,19 @@ class Command(BaseCommand):
             'idCat': cat1_id  # Foreign key to parent category
         })
 
-        # Ingredients
+       # Ingredients
         ing1_id = 'ing1'
         db.collection('ingredients').document(ing1_id).set({
-            'nomIng': 'Boeuf',
-            'nbrMax': 50,
-            'nbrMin': 10
+    'nom': 'Boeuf',
+    'categorie': 'Viandes',  # ou cat2_id si tu veux référencer une catégorie existante
+    'quantite': 10,
+    'unite': 'Kilogramme (kg)',
+    'date_expiration': '2025-06-30',
+    'seuil_alerte': 3,
+    'cout_par_unite': 12.5  # exemple de coût
         })
+
+
 
         # Plats 
         plat1_id = 'plat1'
@@ -281,12 +287,119 @@ class Command(BaseCommand):
     'popularItems': ['plat1', 'plat2', 'plat3'],  # Array of popular item IDs
     'updatedAt': firestore.SERVER_TIMESTAMP
 })
+        db.collection('SalesBySubcategory').document('sales_subcat1').set({         
+    'souscat_id': sous_cat1_id ,
+    'Sales': 5000.00,
+        })
+        assistance1_id = 'assistance1'
+
+
+        demande_annulation_id = 'demande_annulation1'
+        db.collection('DemandeAnnulation').document(demande_annulation_id).set({
+    'idClient': client_id,
+    'idServeur': employe1_id,
+    'idCommande': commande_id,
+    'statut': 'en_attente',
+    'createdAt': firestore.SERVER_TIMESTAMP
+})
+
+# Ajout d'exemples supplémentaires
+        demande_annulation_examples = [
+    {
+        'idClient': client_id,
+        'idServeur': employe1_id,
+        'idCommande': commande_id,
+        'statut': 'approuvée',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idClient': client_id,
+        'idServeur': employe1_id,
+        'idCommande': commande_id,
+        'statut': 'refusée',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    }
+]
+
+
+        for i, exemple in enumerate(demande_annulation_examples, 2):
+         db.collection('DemandeAnnulation').document(f'demande_annulation{i}').set(exemple)
+
+
+        db.collection('demandeAssistance').document(assistance1_id).set({
+    'idC': client_id,
+    'idTable': 'table1',
+    'etat': 'non traitee',
+    'createdAt': firestore.SERVER_TIMESTAMP
+})
+# 10 exemples de documents pour la collection demandeAssistance
+        assistance_examples = [
+    {
+        'idC': client_id,
+        'idTable': 'table2',
+        'etat': 'traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table3',
+        'etat': 'non traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table4',
+        'etat': 'traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table1',
+        'etat': 'non traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table5',
+        'etat': 'traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table6',
+        'etat': 'non traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table7',
+        'etat': 'traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table2',
+        'etat': 'non traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table3',
+        'etat': 'traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    },
+    {
+        'idC': client_id,
+        'idTable': 'table4',
+        'etat': 'non traitee',
+        'createdAt': firestore.SERVER_TIMESTAMP
+    }
+]
+
+# Ajout des exemples à la collection
+        for i, exemple in enumerate(assistance_examples, 2):
+         db.collection('demandeAssistance').document(f'assistance{i}').set(exemple)
         
-    
-
-
-
-        
-        logger.info("Created !")
-        self.stdout.write(self.style.SUCCESS('Firestore initialized successfully'))
+         logger.info("Created !")
+         self.stdout.write(self.style.SUCCESS('Firestore initialized successfully'))
         

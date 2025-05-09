@@ -1,5 +1,5 @@
 from django.urls import path
-from core.views import client_signup_step1, client_signup_step2, client_signup_step3, client_signup_step4, client_login
+from core.views import client_signup_step1, client_signup_step2, client_signup_step3, client_signup_step4, client_signup_step5, client_login
 from . import views
 
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path('auth/signup/step2/', client_signup_step2, name='client_signup_step2'),
     path('auth/signup/step3/', client_signup_step3, name='client_signup_step3'),
     path('auth/signup/step4/', client_signup_step4, name='client_signup_step4'),
+    path('auth/signup/step5/', client_signup_step5, name='client_signup_step5'),
     path('auth/login/', client_login, name='client_login'),
 
     # Profile endpoints

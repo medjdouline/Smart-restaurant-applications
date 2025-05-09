@@ -53,6 +53,7 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ORIGIN_ALLOW_ALL = True
 ROOT_URLCONF = 'restaurant_system.urls'
 
 # Templates
@@ -79,7 +80,7 @@ DATABASES = {}
 FIREBASE_CREDENTIALS_PATH = os.path.abspath(os.getenv('FIREBASE_CREDENTIALS_PATH'))
 if not os.path.exists(FIREBASE_CREDENTIALS_PATH):
     raise FileNotFoundError(f"Firebase credentials missing at {FIREBASE_CREDENTIALS_PATH}")
-
+FIREBASE_API_KEY = "AIzaSyAYqym7Dcr1k_VhyP54L8mxpzT7QctiCQ8"
 # Security
 AUTH_PASSWORD_VALIDATORS = []
 AUTHENTICATION_BACKENDS = []
@@ -93,3 +94,7 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+ALLOWED_HOSTS = ['192.168.100.13',
+                 'localhost', '127.0.0.1']
+
+

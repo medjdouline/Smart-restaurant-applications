@@ -1,0 +1,6 @@
+INFO 2025-05-08 23:30:22,777 autoreload Watching for file changes with StatReloader
+INFO 2025-05-08 23:30:26,379 firebase_utils Firebase initialized successfully
+INFO 2025-05-08 23:30:53,571 autoreload C:\Users\21355\Desktop\restaurant_system\back-end\restaurant_system\settings.py changed, reloading.
+INFO 2025-05-08 23:30:54,536 autoreload Watching for file changes with StatReloader
+INFO 2025-05-08 23:30:55,654 firebase_utils Firebase initialized successfully
+INFO 2025-05-08 23:34:59,880 autoreload C:\Users\21355\Desktop\restaurant_system\back-end\restaurant_system\settings.py changed, reloading.
