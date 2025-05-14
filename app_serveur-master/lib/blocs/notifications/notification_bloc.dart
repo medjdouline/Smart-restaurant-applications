@@ -13,6 +13,7 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     on<LoadNotifications>(_onLoadNotifications);
     on<MarkNotificationAsRead>(_onMarkNotificationAsRead);
     on<MarkAllNotificationsAsRead>(_onMarkAllNotificationsAsRead);
+    on<RefreshNotifications>(_onRefreshNotifications);
   }
 
   Future<void> _onLoadNotifications(
@@ -29,7 +30,26 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     } catch (e) {
       emit(state.copyWith(
         status: NotificationStatus.error,
-        errorMessage: 'Impossible de charger les notifications',
+        errorMessage: 'Impossible de charger les notifications: ${e.toString()}',
+      ));
+    }
+  }
+
+  Future<void> _onRefreshNotifications(
+    RefreshNotifications event,
+    Emitter<NotificationState> emit,
+  ) async {
+    // Ne pas modifier le statut pour éviter le spinner de chargement pendant le refresh
+    try {
+      final notifications = await notificationRepository.getNotifications();
+      emit(state.copyWith(
+        status: NotificationStatus.loaded,
+        notifications: notifications,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: NotificationStatus.error,
+        errorMessage: 'Impossible d\'actualiser les notifications',
       ));
     }
   }
@@ -39,17 +59,12 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     Emitter<NotificationState> emit,
   ) async {
     try {
-      await notificationRepository.markAsRead(event.notificationId);
+      final updatedNotification = await notificationRepository.markAsRead(event.notificationId);
       
-      // Mettre à jour l'état local sans appel API supplémentaire
+      // Mettre à jour l'état local
       final updatedNotifications = state.notifications.map((notification) {
         if (notification.id == event.notificationId) {
-          return UserNotification(
-            id: notification.id,
-            content: notification.content,
-            createdAt: notification.createdAt,
-            isRead: true,
-          );
+          return updatedNotification;
         }
         return notification;
       }).toList();
@@ -70,17 +85,11 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     try {
       await notificationRepository.markAllAsRead();
       
-      // Mettre à jour l'état local sans appel API supplémentaire
-      final updatedNotifications = state.notifications.map((notification) {
-        return UserNotification(
-          id: notification.id,
-          content: notification.content,
-          createdAt: notification.createdAt,
-          isRead: true,
-        );
-      }).toList();
-      
-      emit(state.copyWith(notifications: updatedNotifications));
+      // Rafraîchir les notifications après les avoir toutes marquées comme lues
+      final notifications = await notificationRepository.getNotifications();
+      emit(state.copyWith(
+        notifications: notifications,
+      ));
     } catch (e) {
       emit(state.copyWith(
         status: NotificationStatus.error,

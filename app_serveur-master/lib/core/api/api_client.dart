@@ -1,6 +1,7 @@
-// Enhanced api_client.dart with better error handling and logging
+// Enhanced api_client.dart with better error handling, logging, and retry functionality
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +24,15 @@ class ApiException implements Exception {
 
 class NetworkException extends ApiException {
   NetworkException(String message) : super('Network error: $message');
+}
+
+// New: Add RetryableException for use with retry logic
+class RetryableException implements Exception {
+  final String message;
+  RetryableException(this.message);
+  
+  @override
+  String toString() => 'RetryableException: $message';
 }
 
 class ApiClient {
@@ -93,12 +103,69 @@ class ApiClient {
     } on FormatException catch (e) {
       _logger.e('Format Exception: $e');
       throw ApiException('Invalid response format: $e');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout Exception: $e');
+      throw NetworkException('Request timed out. Please try again.');
     } catch (e) {
       _logger.e('GET Request Failed: $e');
       if (e is ApiException) {
         rethrow;
       }
       throw ApiException('Network error: $e');
+    }
+  }
+  
+  // New: Add retry functionality for GET requests
+  Future<dynamic> getWithRetry(
+    String endpoint, {
+    Map<String, String>? headers,
+    String? token,
+    int maxRetries = 2,
+  }) async {
+    final Uri uri = Uri.parse(endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint');
+    _logger.d('GET Request with retry: $uri');
+    
+    int attempts = 0;
+    Duration delay = Duration(seconds: 1);
+    
+    while (true) {
+      attempts++;
+      try {
+        final Map<String, String> requestHeaders = {
+          ...await _getHeaders(token: token),
+          ...?headers,
+        };
+        
+        final response = await _httpClient.get(uri, headers: requestHeaders)
+            .timeout(_timeout, onTimeout: () {
+          throw NetworkException('Request timed out');
+        });
+        
+        _logger.d('GET Response status: ${response.statusCode}');
+        
+        if (response.statusCode >= 500) {
+          // Server errors are retryable
+          throw RetryableException('Server error: ${response.statusCode}');
+        }
+        
+        return _handleResponse(response);
+      } catch (e) {
+        bool isRetryable = e is RetryableException || 
+                          e is SocketException || 
+                          e is TimeoutException;
+        
+        if (!isRetryable || attempts > maxRetries) {
+          _logger.e('GET Request Failed after $attempts attempts: $e');
+          if (e is ApiException) {
+            rethrow;
+          }
+          throw ApiException('Network error after retry attempts: $e');
+        }
+        
+        _logger.w('Retrying request ($attempts) due to: $e');
+        await Future.delayed(delay);
+        delay *= 2; // Exponential backoff
+      }
     }
   }
   
@@ -169,6 +236,9 @@ class ApiClient {
     } on FormatException catch (e) {
       _logger.e('Format Exception: $e');
       throw ApiException('Invalid response format: $e');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout Exception: $e');
+      throw NetworkException('Request timed out. Please try again.');
     } catch (e) {
       _logger.e('POST request failed: $e');
       if (e is ApiException) {
@@ -224,12 +294,77 @@ class ApiClient {
     } on FormatException catch (e) {
       _logger.e('Format Exception: $e');
       throw ApiException('Invalid response format: $e');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout Exception: $e');
+      throw NetworkException('Request timed out. Please try again.');
     } catch (e) {
       _logger.e('POST Request Failed: $e');
       if (e is ApiException) {
         rethrow;
       }
       throw ApiException('Network error: $e');
+    }
+  }
+
+  // New: Add retry functionality for POST requests
+  Future<dynamic> postWithRetry(
+    String endpoint, {
+    Map<String, dynamic>? data,
+    Map<String, String>? headers,
+    String? token,
+    int maxRetries = 2,
+  }) async {
+    final Uri uri = Uri.parse(endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint');
+    _logger.d('POST Request with retry: $uri');
+    
+    int attempts = 0;
+    Duration delay = Duration(seconds: 1);
+    
+    while (true) {
+      attempts++;
+      try {
+        final Map<String, String> requestHeaders = {
+          ...await _getHeaders(token: token),
+          ...?headers,
+        };
+        
+        if (data != null) {
+          _logger.d('POST Request data: $data');
+        }
+        
+        final response = await _httpClient.post(
+          uri,
+          headers: requestHeaders,
+          body: data != null ? jsonEncode(data) : null,
+        ).timeout(_timeout, onTimeout: () {
+          throw NetworkException('Request timed out');
+        });
+        
+        _logger.d('POST Response status: ${response.statusCode}');
+        
+        if (response.statusCode >= 500) {
+          // Server errors are retryable
+          throw RetryableException('Server error: ${response.statusCode}');
+        }
+        
+        return _handleResponse(response);
+      } catch (e) {
+        bool isRetryable = e is RetryableException || 
+                          e is SocketException || 
+                          e is TimeoutException;
+        
+        if (!isRetryable || attempts > maxRetries) {
+          _logger.e('POST Request Failed after $attempts attempts: $e');
+          if (e is ApiException) {
+            rethrow;
+          }
+          throw ApiException('Network error after retry attempts: $e');
+        }
+        
+        _logger.w('Retrying request ($attempts) due to: $e');
+        await Future.delayed(delay);
+        delay *= 2; // Exponential backoff
+      }
     }
   }
 
@@ -279,12 +414,77 @@ class ApiClient {
     } on FormatException catch (e) {
       _logger.e('Format Exception: $e');
       throw ApiException('Invalid response format: $e');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout Exception: $e');
+      throw NetworkException('Request timed out. Please try again.');
     } catch (e) {
       _logger.e('PUT Request Failed: $e');
       if (e is ApiException) {
         rethrow;
       }
       throw ApiException('Network error: $e');
+    }
+  }
+
+  // New: Add retry functionality for PUT requests
+  Future<dynamic> putWithRetry(
+    String endpoint, {
+    Map<String, dynamic>? data,
+    Map<String, String>? headers,
+    String? token,
+    int maxRetries = 2,
+  }) async {
+    final Uri uri = Uri.parse(endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint');
+    _logger.d('PUT Request with retry: $uri');
+    
+    int attempts = 0;
+    Duration delay = Duration(seconds: 1);
+    
+    while (true) {
+      attempts++;
+      try {
+        final Map<String, String> requestHeaders = {
+          ...await _getHeaders(token: token),
+          ...?headers,
+        };
+        
+        if (data != null) {
+          _logger.d('PUT Request data: $data');
+        }
+        
+        final response = await _httpClient.put(
+          uri,
+          headers: requestHeaders,
+          body: data != null ? jsonEncode(data) : null,
+        ).timeout(_timeout, onTimeout: () {
+          throw NetworkException('Request timed out');
+        });
+        
+        _logger.d('PUT Response status: ${response.statusCode}');
+        
+        if (response.statusCode >= 500) {
+          // Server errors are retryable
+          throw RetryableException('Server error: ${response.statusCode}');
+        }
+        
+        return _handleResponse(response);
+      } catch (e) {
+        bool isRetryable = e is RetryableException || 
+                          e is SocketException || 
+                          e is TimeoutException;
+        
+        if (!isRetryable || attempts > maxRetries) {
+          _logger.e('PUT Request Failed after $attempts attempts: $e');
+          if (e is ApiException) {
+            rethrow;
+          }
+          throw ApiException('Network error after retry attempts: $e');
+        }
+        
+        _logger.w('Retrying request ($attempts) due to: $e');
+        await Future.delayed(delay);
+        delay *= 2; // Exponential backoff
+      }
     }
   }
 
@@ -334,6 +534,9 @@ class ApiClient {
     } on FormatException catch (e) {
       _logger.e('Format Exception: $e');
       throw ApiException('Invalid response format: $e');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout Exception: $e');
+      throw NetworkException('Request timed out. Please try again.');
     } catch (e) {
       _logger.e('DELETE Request Failed: $e');
       if (e is ApiException) {
@@ -344,17 +547,30 @@ class ApiClient {
   }
 
   // Helper function to handle API responses
-  dynamic _handleResponse(http.Response response) {
+ dynamic _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
         return {};
       }
       
       try {
+        // Check if response is HTML (common error scenario)
+        if (response.body.trim().startsWith('<!DOCTYPE html>') || 
+            response.body.trim().startsWith('<html')) {
+          _logger.e('Received HTML response instead of JSON');
+          throw ApiException('Server returned HTML instead of JSON data', 
+              statusCode: response.statusCode, 
+              data: response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body);
+        }
+        
         return jsonDecode(response.body);
       } catch (e) {
         _logger.e('JSON Decode Error: $e');
-        throw ApiException('Failed to parse response');
+        if (e is FormatException) {
+          _logger.e('Error parsing error response: $e');
+          _logger.e(response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body);
+        }
+        throw ApiException('Failed to parse response: ${e.toString()}');
       }
     } else {
       String errorMessage = 'Request failed with status: ${response.statusCode}';
@@ -362,6 +578,15 @@ class ApiClient {
       
       try {
         if (response.body.isNotEmpty) {
+          // Check if error response is HTML
+          if (response.body.trim().startsWith('<!DOCTYPE html>') || 
+              response.body.trim().startsWith('<html')) {
+            _logger.e('Received HTML error page instead of JSON');
+            throw ApiException('Server returned HTML error page', 
+                statusCode: response.statusCode, 
+                data: response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body);
+          }
+          
           errorData = jsonDecode(response.body);
           if (errorData is Map) {
             if (errorData.containsKey('error')) {
@@ -375,6 +600,9 @@ class ApiClient {
         }
       } catch (e) {
         _logger.e('Error parsing error response: $e');
+        if (e is FormatException) {
+          _logger.e(response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body);
+        }
       }
       
       throw ApiException(errorMessage, statusCode: response.statusCode, data: errorData);

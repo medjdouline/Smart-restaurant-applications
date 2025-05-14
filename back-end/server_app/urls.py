@@ -18,7 +18,7 @@ urlpatterns = [
     path('orders/served/', views.get_served_orders_view, name='get_served_orders_view'),
     path('orders/cancelled/', views.get_cancelled_orders_view, name='get_cancelled_orders_view'),
     path('orders/<str:order_id>/status/', views.update_order_status, name='update_order_status'),
-    # Ajouter ces lignes à vos urlpatterns existants dans urls.py
+ 
     path('orders/<str:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/<str:order_id>/request-cancel/', views.request_cancel_order, name='request_cancel_order'),
     
@@ -38,4 +38,5 @@ urlpatterns = [
     # Notifications
     path('notifications/', views.get_notifications, name='get_notifications'),
     path('notifications/<str:notification_id>/', views.get_notification_details, name='get_notification_details'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
 ]

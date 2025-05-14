@@ -11,6 +11,7 @@ import 'blocs/notifications/notification_bloc.dart';
 import 'blocs/profile/profile_bloc.dart';
 import 'blocs/home/home_bloc.dart';
 import 'data/repositories/order_repository.dart';
+import 'data/repositories/order_repository_impl.dart'; // Add this import
 import 'data/repositories/assistance_repository.dart';
 import 'data/repositories/home_repository.dart';
 import 'core/api/api_service.dart';
@@ -60,8 +61,11 @@ class MyApp extends StatelessWidget {
             firebaseAuthService: firebaseAuthService,
           ),
         ),
+        // Change to use OrderRepositoryImpl but provide it as OrderRepository interface
         RepositoryProvider<OrderRepository>(
-          create: (context) => OrderRepository(),
+          create: (context) => OrderRepositoryImpl(
+            apiClient: apiClient,
+          ),
         ),
         // Add the AssistanceRepository provider before HomeRepository
         RepositoryProvider<AssistanceRepository>(
@@ -74,7 +78,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         RepositoryProvider<NotificationRepository>(
-          create: (context) => NotificationRepository(),
+          create: (context) => NotificationRepository(apiClient: apiClient),
         ),
         RepositoryProvider<ProfileRepository>( 
           create: (context) => ProfileRepository(

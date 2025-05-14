@@ -1,4 +1,6 @@
 // lib/data/repositories/order_repository_impl.dart
+import 'dart:async';
+
 import 'package:app_serveur/core/api/api_client.dart';
 import '../models/order.dart';
 import '../models/assistance_request.dart';
@@ -18,29 +20,42 @@ class OrderRepositoryImpl implements OrderRepository {
     required ApiClient apiClient,
   }) : _apiClient = apiClient;
 
-  @override
-  Future<List<Order>> getNewOrders() async {
-    try {
-      print('[DEBUG] Fetching pending orders...');
-      final dynamic data = await _apiClient.get('/orders/pending/');
-      print('[DEBUG] Pending orders raw data: $data');
-      
-      if (data is List) {
-        print('[DEBUG] Received ${data.length} pending orders');
-        return _mapOrdersFromJson(data);
-      } else if (data is Map && data.containsKey('data')) {
-        print('[DEBUG] Received pending orders in data field');
-        final items = data['data'];
-        if (items is List) {
-          return _mapOrdersFromJson(items);
-        }
+@override
+Future<List<Order>> getNewOrders() async {
+  try {
+    print('[DEBUG] Fetching new orders (pending and preparing)...');
+    // First get pending orders
+    final pendingData = await _apiClient.get('/orders/pending/');
+    // Then get preparing orders
+    final preparingData = await _apiClient.get('/orders/preparing/');
+    
+    List<Order> allOrders = [];
+    
+    if (pendingData is List) {
+      allOrders.addAll(_mapOrdersFromJson(pendingData));
+    } else if (pendingData is Map && pendingData.containsKey('data')) {
+      final items = pendingData['data'];
+      if (items is List) {
+        allOrders.addAll(_mapOrdersFromJson(items));
       }
-      return [];
-    } catch (e) {
-      print('[ERROR] Failed to fetch pending orders: $e');
-      rethrow;
     }
+    
+    if (preparingData is List) {
+      allOrders.addAll(_mapOrdersFromJson(preparingData));
+    } else if (preparingData is Map && preparingData.containsKey('data')) {
+      final items = preparingData['data'];
+      if (items is List) {
+        allOrders.addAll(_mapOrdersFromJson(items));
+      }
+    }
+    
+    print('[DEBUG] Total new orders: ${allOrders.length}');
+    return allOrders;
+  } catch (e) {
+    print('[ERROR] Failed to fetch new orders: $e');
+    rethrow;
   }
+}
 
   // Helper method to map JSON to Order objects
   List<Order> _mapOrdersFromJson(List items) {
@@ -209,34 +224,54 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   // FIXED: Improved status mapping to handle all variations
-  String _mapStatusFromResponse(dynamic status) {
-    if (status == null) return 'pending';
-    
-    String statusStr = status.toString().toLowerCase().trim();
-    
-    // More comprehensive status mapping
-    if (statusStr.contains('attente') || statusStr == 'pending') return 'pending';
-    if (statusStr.contains('preparation') || statusStr == 'preparing') return 'preparing';
-    if (statusStr.contains('pret') || statusStr.contains('prete') || statusStr == 'ready') return 'ready';
-    if (statusStr.contains('servi') || statusStr.contains('servie') || statusStr.contains('service') || statusStr == 'served') return 'served';
-    if (statusStr.contains('termin') || statusStr == 'completed') return 'completed';
-    if (statusStr.contains('annul') || statusStr == 'cancelled') return 'cancelled';
-    
-    return 'pending'; // Default to pending for unrecognized status
+String _mapStatusFromResponse(dynamic status) {
+  if (status == null) return 'pending';
+  
+  String statusStr = status.toString().toLowerCase().trim();
+  
+  // Map all possible backend status values to frontend statuses
+  if (statusStr.contains('attente') || 
+      statusStr == 'pending' || 
+      statusStr == 'en_attente' ||
+      statusStr == 'en attente') {
+    return 'pending';
   }
+  if (statusStr.contains('preparation') || 
+      statusStr == 'preparing' || 
+      statusStr == 'en_preparation' ||
+      statusStr == 'en preparation') {
+    return 'preparing';
+  }
+  if (statusStr.contains('pret') || 
+      statusStr.contains('prete') || 
+      statusStr == 'ready') {
+    return 'ready';
+  }
+  if (statusStr.contains('servi') || 
+      statusStr.contains('servie') || 
+      statusStr == 'served') {
+    return 'served';
+  }
+  if (statusStr.contains('annul') || 
+      statusStr == 'cancelled' || 
+      statusStr == 'annulee') {
+    return 'cancelled';
+  }
+  
+  return 'pending'; // Default to pending for unrecognized status
+}
 
-  // FIXED: Ensuring consistent status values sent to backend
-  String _mapStatusToBackend(String frontendStatus) {
-    switch (frontendStatus.toLowerCase()) {
-      case 'pending': return 'en_attente';
-      case 'preparing': return 'en_preparation';
-      case 'ready': return 'pret';
-      case 'served': return 'servi';
-      case 'completed': return 'termine';
-      case 'cancelled': return 'annulee';
-      default: return frontendStatus;
-    }
+ // Update the _mapStatusToBackend method
+String _mapStatusToBackend(String frontendStatus) {
+  switch (frontendStatus.toLowerCase()) {
+    case 'pending': return 'en_attente';
+    case 'preparing': return 'en_preparation';
+    case 'ready': return 'pret';
+    case 'served': return 'servi';
+    case 'cancelled': return 'annulee';
+    default: return frontendStatus;
   }
+}
 
   @override
   Future<List<Order>> getAllOrders() async {
@@ -388,6 +423,49 @@ class OrderRepositoryImpl implements OrderRepository {
       throw Exception('Failed to cancel order: ${e.toString()}');
     }
   }
+
+// Dans order_repository_impl.dart, modifiez ces deux méthodes:
+
+@override
+Future<void> requestCancelOrder(String orderId, String currentStatus) async {
+  try {
+    if (currentStatus == 'pending' || currentStatus == 'new') {
+      await directCancelOrder(orderId);
+    } else {
+      final response = await _apiClient.post(
+        '/orders/$orderId/request-cancel/',
+        data: {'motif': 'Demande d\'annulation par serveur'},
+      ).timeout(const Duration(seconds: 10));
+
+      print('Cancellation request created successfully: $response');
+    }
+  } on TimeoutException {
+    throw Exception('La demande a pris trop de temps. Veuillez réessayer.');
+  } on ApiException catch (e) {
+    throw Exception('Erreur de serveur: ${e.message}');
+  } catch (e) {
+    throw Exception('Impossible de créer la demande d\'annulation: ${e.toString()}');
+  }
+}
+
+@override
+Future<void> directCancelOrder(String orderId) async {
+  try {
+    final response = await _apiClient.post(
+      '/orders/$orderId/cancel/',
+    ).timeout(const Duration(seconds: 10));
+
+    print('Order cancelled successfully: $response');
+  } on TimeoutException {
+    throw Exception('La demande a pris trop de temps. Veuillez réessayer.');
+  } on ApiException catch (e) {
+    throw Exception('Erreur de serveur: ${e.message}');
+  } catch (e) {
+    throw Exception('Impossible d\'annuler la commande: ${e.toString()}');
+  }
+}
+
+  
 
   @override
   Future<List<AssistanceRequest>> getAssistanceRequests() async {

@@ -16,8 +16,11 @@ class AssistanceRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
     final Duration difference = now.difference(request.createdAt);
-    // Check both possible completed status values
-    final bool isCompleted = request.status == 'traitee' || request.status == 'completed';
+    
+    // Check all possible completed status values
+    final bool isCompleted = 
+        request.status == 'traitee' || 
+        request.status == 'completed';
     
     // Format time ago
     String timeAgo;

@@ -1,6 +1,6 @@
 // lib/blocs/tables/tables_state.dart
 import 'package:equatable/equatable.dart';
-import '../../data/models/table.dart';
+
 
 enum TablesStatus { initial, loading, success, failure }
 

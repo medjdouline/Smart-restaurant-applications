@@ -18,58 +18,62 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     on<ConfirmOrderServed>(_onConfirmOrderServed);
   }
 
-  Future<void> _onLoadOrders(
-    LoadOrders event,
-    Emitter<OrderState> emit,
-  ) async {
-    emit(state.copyWith(status: OrderStatus.loading));
-    try {
-      final newOrders = await orderRepository.getNewOrders();
-      final readyOrders = await orderRepository.getReadyOrders();
-      final servedOrders = await orderRepository.getServedOrders();
-      final cancelledOrders = await orderRepository.getCancelledOrders();
-      
-      // Déterminer les commandes filtrées selon le filtre courant
-      List<Order> filteredOrders;
-      switch (state.currentFilter) {
-        case 'Tous':
-          filteredOrders = [...newOrders, ...readyOrders];
-          break;
-        case 'En attente':
-          filteredOrders = newOrders.where((order) => order.status == 'new').toList();
-          break;
-        case 'En préparation':
-          filteredOrders = newOrders.where((order) => order.status == 'preparing').toList();
-          break;
-        case 'Prête':
-          filteredOrders = readyOrders;
-          break;
-        case 'Servie':
-          filteredOrders = servedOrders;
-          break;
-        case 'Annulées':
-          filteredOrders = cancelledOrders;
-          break;
-        default:
-          filteredOrders = [...newOrders, ...readyOrders];
-      }
-      
-      emit(state.copyWith(
-        status: OrderStatus.loaded,
-        newOrders: newOrders,
-        readyOrders: readyOrders,
-        servedOrders: servedOrders,
-        cancelledOrders: cancelledOrders,
-        filteredOrders: filteredOrders,
-        currentFilter: state.currentFilter,
-      ));
-    } catch (e) {
-      emit(state.copyWith(
-        status: OrderStatus.error,
-        errorMessage: 'Impossible de charger les données: ${e.toString()}',
-      ));
+Future<void> _onLoadOrders(
+  LoadOrders event,
+  Emitter<OrderState> emit,
+) async {
+  // Ne pas recharger si déjà en cours de chargement
+  if (state.status == OrderStatus.loading) return;
+
+  emit(state.copyWith(status: OrderStatus.loading));
+  
+  try {
+    final newOrders = await orderRepository.getNewOrders();
+    final readyOrders = await orderRepository.getReadyOrders();
+    final servedOrders = await orderRepository.getServedOrders();
+    final cancelledOrders = await orderRepository.getCancelledOrders();
+
+    List<Order> filteredOrders;
+    switch (state.currentFilter) {
+      case 'Tous':
+        filteredOrders = [...newOrders, ...readyOrders];
+        break;
+      case 'En attente':
+        filteredOrders = newOrders.where((o) => o.status == 'pending').toList();
+        break;
+      case 'En préparation':
+        filteredOrders = newOrders.where((o) => o.status == 'preparing').toList();
+        break;
+      case 'Prête':
+        filteredOrders = readyOrders;
+        break;
+      case 'Servie':
+        filteredOrders = servedOrders;
+        break;
+      case 'Annulées':
+        filteredOrders = cancelledOrders;
+        break;
+      default:
+        filteredOrders = [...newOrders, ...readyOrders];
     }
+
+    emit(state.copyWith(
+      status: OrderStatus.loaded,
+      newOrders: newOrders,
+      readyOrders: readyOrders,
+      servedOrders: servedOrders,
+      cancelledOrders: cancelledOrders,
+      filteredOrders: filteredOrders,
+      errorMessage: null,
+    ));
+
+  } catch (e) {
+    emit(state.copyWith(
+      status: OrderStatus.error,
+      errorMessage: 'Erreur de chargement: ${e.toString()}',
+    ));
   }
+}
 
   Future<void> _onServeOrder(
     ServeOrder event,
@@ -158,25 +162,40 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     }
   }
 
-  Future<void> _onRequestCancelOrder(
-    RequestCancelOrder event,
-    Emitter<OrderState> emit,
-  ) async {
-    // Pour les commandes en préparation ou prêtes, on demande confirmation au manager
-    if (event.currentStatus == 'preparing' || event.currentStatus == 'ready') {
-      // Ici on simulerait l'envoi d'une demande au manager
-      emit(state.copyWith(
-        status: OrderStatus.cancelRequested,
-      ));
-      
-      // Pour la démo, on simule l'acceptation par le manager après un délai
-      await Future.delayed(const Duration(seconds: 1));
-      add(CancelOrder(orderId: event.orderId, currentStatus: event.currentStatus));
-    } else {
-      // Pour les commandes "new", on peut annuler directement
-      add(CancelOrder(orderId: event.orderId, currentStatus: event.currentStatus));
-    }
+// Replace the existing _onRequestCancelOrder method with this one
+Future<void> _onRequestCancelOrder(
+  RequestCancelOrder event,
+  Emitter<OrderState> emit,
+) async {
+  try {
+    // État initial de chargement
+    emit(state.copyWith(
+      status: OrderStatus.loading,
+      infoMessage: null,
+      errorMessage: null,
+    ));
+
+    // Appel API
+    await orderRepository.requestCancelOrder(
+      event.orderId,
+      event.currentStatus,
+    );
+
+    // Message de succès sans rechargement immédiat
+    emit(state.copyWith(
+      status: OrderStatus.cancelRequested,
+      infoMessage: event.currentStatus == 'pending' || event.currentStatus == 'new'
+          ? 'Commande annulée avec succès'
+          : 'Demande d\'annulation envoyée',
+    ));
+
+  } catch (e) {
+    emit(state.copyWith(
+      status: OrderStatus.error,
+      errorMessage: 'Erreur lors de l\'annulation: ${e.toString()}',
+    ));
   }
+}
 
   Future<void> _onCancelOrder(
     CancelOrder event,
@@ -320,38 +339,40 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     }
   }
 
-  void _onFilterOrders(
-    FilterOrders event,
-    Emitter<OrderState> emit,
-  ) {
-    List<Order> filteredOrders = [];
-    
-    switch (event.filter) {
-      case 'Tous':
-        filteredOrders = [...state.newOrders, ...state.readyOrders];
-        break;
-      case 'En attente':
-        filteredOrders = state.newOrders.where((order) => order.status == 'new').toList();
-        break;
-      case 'En préparation':
-        filteredOrders = state.newOrders.where((order) => order.status == 'preparing').toList();
-        break;
-      case 'Prête':
-        filteredOrders = state.readyOrders;
-        break;
-      case 'Servie':
-        filteredOrders = state.servedOrders;
-        break;
-      case 'Annulées':
-        filteredOrders = state.cancelledOrders;
-        break;
-      default:
-        filteredOrders = [...state.newOrders, ...state.readyOrders];
-    }
-    
-    emit(state.copyWith(
-      filteredOrders: filteredOrders,
-      currentFilter: event.filter,
-    ));
+void _onFilterOrders(
+  FilterOrders event,
+  Emitter<OrderState> emit,
+) {
+  List<Order> filteredOrders = [];
+  
+  switch (event.filter) {
+    case 'Tous':
+      filteredOrders = [...state.newOrders, ...state.readyOrders];
+      break;
+    case 'En attente':
+      filteredOrders = state.newOrders.where((order) => 
+        order.status == 'pending').toList();
+      break;
+    case 'En préparation':
+      filteredOrders = state.newOrders.where((order) => 
+        order.status == 'preparing').toList();
+      break;
+    case 'Prête':
+      filteredOrders = state.readyOrders;
+      break;
+    case 'Servie':
+      filteredOrders = state.servedOrders;
+      break;
+    case 'Annulées':
+      filteredOrders = state.cancelledOrders;
+      break;
+    default:
+      filteredOrders = [...state.newOrders, ...state.readyOrders];
   }
+  
+  emit(state.copyWith(
+    filteredOrders: filteredOrders,
+    currentFilter: event.filter,
+  ));
+}
 }

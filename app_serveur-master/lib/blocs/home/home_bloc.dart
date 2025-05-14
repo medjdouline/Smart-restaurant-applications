@@ -1,65 +1,90 @@
 // lib/blocs/home/home_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:logger/logger.dart';
+import '../../data/models/assistance_request.dart';
 import '../../data/repositories/home_repository.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final HomeRepository homeRepository;
-
-  HomeBloc({required this.homeRepository}) : super(HomeState()) {
+  final _logger = Logger();
+  
+  HomeBloc({required this.homeRepository}) : super(HomeState.initial()) {
     on<LoadHomeDashboard>(_onLoadHomeDashboard);
-    on<ToggleShowAllNewOrders>(_onToggleShowAllNewOrders);
-    on<ToggleShowAllTables>(_onToggleShowAllTables);
-    on<ToggleShowAllAssistanceRequests>(_onToggleShowAllAssistanceRequests);
     on<CompleteAssistanceRequest>(_onCompleteAssistanceRequest);
+    on<ToggleShowAllAssistanceRequests>(_onToggleShowAllAssistanceRequests);
   }
 
   Future<void> _onLoadHomeDashboard(
     LoadHomeDashboard event,
     Emitter<HomeState> emit,
   ) async {
-    emit(state.copyWith(status: HomeStatus.loading));
     try {
-      // Récupérer les données pour le tableau de bord
-      final preparingOrders = await homeRepository.getPreparingOrders();
-      final readyOrders = await homeRepository.getReadyOrders();
+      emit(state.copyWith(status: HomeStatus.loading));
+      
+      // Fetch assistance requests
       final assistanceRequests = await homeRepository.getAssistanceRequests();
+      _logger.i('Loaded ${assistanceRequests.length} assistance requests');
       
-      // Combiner les commandes en préparation et prêtes pour l'affichage sur le dashboard
-      final recentOrders = [...preparingOrders, ...readyOrders];
-      
+      // Log retrieved requests to help debug
+      for (var request in assistanceRequests) {
+        _logger.d('Assistance request: ${request.id}, status: ${request.status}, tableId: ${request.tableId}');
+      }
+
       emit(state.copyWith(
         status: HomeStatus.loaded,
-        recentOrders: recentOrders,
         assistanceRequests: assistanceRequests,
-        readyOrdersCount: readyOrders.length,
-        assistanceRequestsCount: assistanceRequests.length,
+        assistanceRequestsCount: assistanceRequests.where((req) => 
+            req.status != 'traitee' && 
+            req.status != 'completed').length,
       ));
     } catch (e) {
+      _logger.e('Error loading home dashboard: $e');
       emit(state.copyWith(
         status: HomeStatus.error,
-        errorMessage: 'Impossible de charger les données du tableau de bord: ${e.toString()}',
+        errorMessage: 'Failed to load dashboard data: $e',
       ));
     }
   }
 
-  void _onToggleShowAllNewOrders(
-    ToggleShowAllNewOrders event,
+  Future<void> _onCompleteAssistanceRequest(
+    CompleteAssistanceRequest event,
     Emitter<HomeState> emit,
-  ) {
-    emit(state.copyWith(
-      showAllNewOrders: !state.showAllNewOrders,
-    ));
-  }
+  ) async {
+    try {
+      _logger.i('Completing assistance request: ${event.requestId}');
+      
+      // Make API call to mark as completed
+      await homeRepository.completeAssistanceRequest(event.requestId);
+      
+      // Update local state - find the request and update its status
+      final updatedRequests = state.assistanceRequests.map((request) {
+        if (request.id == event.requestId) {
+          _logger.i('Marking request ${event.requestId} as completed');
+          return request.copyWith(status: 'traitee');
+        }
+        return request;
+      }).toList();
 
-  void _onToggleShowAllTables(
-    ToggleShowAllTables event,
-    Emitter<HomeState> emit,
-  ) {
-    emit(state.copyWith(
-      showAllTables: !state.showAllTables,
-    ));
+      // Count active requests (not completed/treated)
+      final activeCount = updatedRequests.where((req) => 
+          req.status != 'traitee' && 
+          req.status != 'completed').length;
+      
+      emit(state.copyWith(
+        assistanceRequests: updatedRequests,
+        assistanceRequestsCount: activeCount,
+      ));
+      
+      // Fetch updated data from server to ensure consistency
+      add(LoadHomeDashboard());
+    } catch (e) {
+      _logger.e('Error completing assistance request: $e');
+      emit(state.copyWith(
+        errorMessage: 'Failed to complete assistance request: $e',
+      ));
+    }
   }
 
   void _onToggleShowAllAssistanceRequests(
@@ -70,45 +95,4 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       showAllAssistanceRequests: !state.showAllAssistanceRequests,
     ));
   }
-
-  Future<void> _onCompleteAssistanceRequest(
-    CompleteAssistanceRequest event,
-    Emitter<HomeState> emit,
-  ) async {
-    try {
-      await homeRepository.completeAssistanceRequest(event.requestId);
-      
-      // Au lieu de supprimer la demande, mettre à jour son statut
-      final updatedRequests = state.assistanceRequests.map((request) {
-        // Si c'est la demande concernée, changer son statut
-        if (request.id == event.requestId) {
-          return request.copyWith(status: 'completed');
-        }
-        return request;
-      }).toList();
-      
-      emit(state.copyWith(
-        assistanceRequests: updatedRequests,
-        status: HomeStatus.assistanceCompleted,
-        assistanceRequestsCount: state.assistanceRequestsCount - 1,
-      ));
-      
-      // Après un délai, retirer la demande terminée
-      await Future.delayed(const Duration(seconds: 2));
-      final filteredRequests = updatedRequests
-          .where((request) => request.status != 'completed')
-          .toList();
-      
-      emit(state.copyWith(
-        assistanceRequests: filteredRequests,
-      ));
-      
-    } catch (e) {
-      emit(state.copyWith(
-        status: HomeStatus.error,
-        errorMessage: 'Impossible de compléter la demande d\'assistance',
-      ));
-    }
-  }
 }
-

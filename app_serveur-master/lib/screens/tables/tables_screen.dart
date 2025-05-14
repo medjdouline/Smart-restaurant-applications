@@ -9,7 +9,6 @@ import '../../widgets/bottom_navigation.dart';
 import '../../data/models/table.dart';
 import '../../data/models/order.dart';
 import '../../widgets/tables/table_list_item.dart';
-import '../../widgets/tables/order_list_item.dart';
 import '../../widgets/tables/order_detail_modal.dart';
 
 class TablesScreen extends StatefulWidget {
@@ -144,7 +143,7 @@ class _TablesScreenState extends State<TablesScreen> {
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(20),
-          height: MediaQuery.of(context).size.height * 0.7,
+          height: MediaQuery.of(context).size.height * 0.4, // Reduced height since we're removing sections
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -183,22 +182,6 @@ class _TablesScreenState extends State<TablesScreen> {
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withAlpha((0.8 * 255).toInt()),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${table.customerCount} clients',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 25),
@@ -209,10 +192,9 @@ class _TablesScreenState extends State<TablesScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildInfoItem('Capacité', '${table.capacity} places', Icons.chair),
-                    _buildInfoItem('Commandes', '${table.orderCount}', Icons.receipt),
                   ],
                 ),
               ),
@@ -260,54 +242,6 @@ class _TablesScreenState extends State<TablesScreen> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 10),
-              const Text(
-                'Commandes de la table',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 15),
-              Expanded(
-                child: BlocBuilder<TablesBloc, TablesState>(
-                  builder: (context, state) {
-                    if (state.status == TablesStatus.loading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final tableOrders = state.tableOrders[table.id] ?? [];
-
-                    if (tableOrders.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'Aucune commande pour cette table',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      itemCount: tableOrders.length,
-                      itemBuilder: (context, index) {
-                        final order = tableOrders[index];
-                        return OrderListItem(
-                          order: order,
-                          onTap: () => _showOrderDetailModal(context, order),
-                          onCancel: () {
-                            // Optional: Handle cancel
-                          },
-                        );
-                      },
-                    );
-                  },
                 ),
               ),
             ],

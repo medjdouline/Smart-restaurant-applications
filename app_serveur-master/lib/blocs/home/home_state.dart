@@ -1,98 +1,64 @@
 // lib/blocs/home/home_state.dart
-import '../../data/models/order.dart';
-import '../../data/models/table.dart';
 import '../../data/models/assistance_request.dart';
 
-enum HomeStatus {
-  initial,
-  loading,
-  loaded,
-  error,
-  assistanceCompleted,
-}
+enum HomeStatus { initial, loading, loaded, error }
 
 class HomeState {
   final HomeStatus status;
-  final List<Order> recentOrders; // Commandes en préparation et prêtes
-  final List<RestaurantTable> activeTables;
   final List<AssistanceRequest> assistanceRequests;
-  final String? errorMessage;
-  final bool showAllNewOrders;
-  final bool showAllTables;
+  final int assistanceRequestsCount;
   final bool showAllAssistanceRequests;
-  final int readyOrdersCount; // Pour l'affichage dans les cartes de résumé
-  final int assistanceRequestsCount; // Pour l'affichage dans les cartes de résumé
-
+  final String? errorMessage;
+  
   HomeState({
-    this.status = HomeStatus.initial,
-    this.recentOrders = const [],
-    this.activeTables = const [],
-    this.assistanceRequests = const [],
+    required this.status,
+    required this.assistanceRequests,
+    required this.assistanceRequestsCount,
+    required this.showAllAssistanceRequests,
     this.errorMessage,
-    this.showAllNewOrders = false,
-    this.showAllTables = false,
-    this.showAllAssistanceRequests = false,
-    this.readyOrdersCount = 0,
-    this.assistanceRequestsCount = 0,
   });
-
+  
+  factory HomeState.initial() {
+    return HomeState(
+      status: HomeStatus.initial,
+      assistanceRequests: [],
+      assistanceRequestsCount: 0,
+      showAllAssistanceRequests: false,
+      errorMessage: null,
+    );
+  }
+  
   HomeState copyWith({
     HomeStatus? status,
-    List<Order>? recentOrders,
-    List<RestaurantTable>? activeTables,
     List<AssistanceRequest>? assistanceRequests,
-    String? errorMessage,
-    bool? showAllNewOrders,
-    bool? showAllTables,
-    bool? showAllAssistanceRequests,
-    int? readyOrdersCount,
     int? assistanceRequestsCount,
+    bool? showAllAssistanceRequests,
+    String? errorMessage,
   }) {
     return HomeState(
       status: status ?? this.status,
-      recentOrders: recentOrders ?? this.recentOrders,
-      activeTables: activeTables ?? this.activeTables,
       assistanceRequests: assistanceRequests ?? this.assistanceRequests,
-      errorMessage: errorMessage ?? this.errorMessage,
-      showAllNewOrders: showAllNewOrders ?? this.showAllNewOrders,
-      showAllTables: showAllTables ?? this.showAllTables,
-      showAllAssistanceRequests: showAllAssistanceRequests ?? this.showAllAssistanceRequests,
-      readyOrdersCount: readyOrdersCount ?? this.readyOrdersCount,
       assistanceRequestsCount: assistanceRequestsCount ?? this.assistanceRequestsCount,
+      showAllAssistanceRequests: showAllAssistanceRequests ?? this.showAllAssistanceRequests,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
-
-  // Méthodes pour obtenir le nombre d'éléments à afficher en fonction de l'état
-  List<Order> getVisibleNewOrders() {
-    if (showAllNewOrders || recentOrders.length <= 2) {
-      return recentOrders;
-    }
-    return recentOrders.sublist(0, 2);
-  }
-
-  List<RestaurantTable> getVisibleTables() {
-    if (showAllTables || activeTables.length <= 2) {
-      return activeTables;
-    }
-    return activeTables.sublist(0, 2);
-  }
-
+  
+  // Get only the assistance requests that should be visible based on showAllAssistanceRequests
   List<AssistanceRequest> getVisibleAssistanceRequests() {
-    if (showAllAssistanceRequests || assistanceRequests.length <= 2) {
+    if (showAllAssistanceRequests) {
       return assistanceRequests;
     }
-    return assistanceRequests.sublist(0, 2);
+    
+    // Show only the first 3 requests
+    const int maxRequestsToShow = 3;
+    return assistanceRequests.length <= maxRequestsToShow 
+        ? assistanceRequests 
+        : assistanceRequests.sublist(0, maxRequestsToShow);
   }
-
-  bool shouldShowNewOrdersViewMore() {
-    return !showAllNewOrders && recentOrders.length > 2;
-  }
-
-  bool shouldShowTablesViewMore() {
-    return !showAllTables && activeTables.length > 2;
-  }
-
+  
+  // Determine if the "View More" button should be shown
   bool shouldShowAssistanceRequestsViewMore() {
-    return !showAllAssistanceRequests && assistanceRequests.length > 2;
+    return !showAllAssistanceRequests && assistanceRequests.length > 3;
   }
 }

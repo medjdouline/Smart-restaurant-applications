@@ -17,17 +17,28 @@ class AssistanceRequest {
   factory AssistanceRequest.fromJson(Map<String, dynamic> json) {
     DateTime parsedDate;
     try {
-      parsedDate = DateTime.parse(json['createdAt'] as String);
+      // Handle both Timestamp and ISO8601 string formats
+      if (json['createdAt'] is String) {
+        parsedDate = DateTime.parse(json['createdAt']);
+      } else if (json['createdAt'] != null) {
+        // Handle Firestore timestamp conversion
+        parsedDate = DateTime.fromMillisecondsSinceEpoch(
+            (json['createdAt'].seconds * 1000) +
+                (json['createdAt'].nanoseconds ~/ 1000000));
+      } else {
+        parsedDate = DateTime.now();
+      }
     } catch (e) {
       parsedDate = DateTime.now();
     }
 
     return AssistanceRequest(
       id: json['id'] as String,
-      tableId: json['tableId'] as String,
-      userId: json['userId'] as String,
+      tableId: json['tableId'] as String? ?? json['idTable'] as String? ?? '',
+      userId: json['userId'] as String? ?? json['idC'] as String? ?? '',
       createdAt: parsedDate,
-      status: json['status'] as String,
+      // Handle both 'status' and 'etat' field names from backend
+      status: json['status'] as String? ?? json['etat'] as String? ?? 'non traitee',
     );
   }
 

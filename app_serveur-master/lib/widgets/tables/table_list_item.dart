@@ -11,7 +11,7 @@ class TableListItem extends StatelessWidget {
     super.key,
     required this.table,
     required this.onTap,
-  }) ;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,13 +33,26 @@ class TableListItem extends StatelessWidget {
                 size: 24,
               ),
               const SizedBox(width: 15),
-              Text(
-                table.id,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    table.id,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    table.isOccupied ? 'Occupée' : 'Libre',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

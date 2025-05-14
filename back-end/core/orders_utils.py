@@ -19,86 +19,100 @@ def get_order_details(order_doc, db):
         db: Firestore database instance
         
     Returns:
-        dict: Complete order details
+        dict: Complete order details with consistent structure
     """
-    # Get base order data
-    order = order_doc.to_dict()
-    order['id'] = order_doc.id
-    
-    # Get associated order items
-    items = []
-    order_plat_ref = db.collection('commande_plat').where('idCmd', '==', order_doc.id)
-    for cp_doc in order_plat_ref.stream():
-        cp_data = cp_doc.to_dict()
-        plat_ref = db.collection('plats').document(cp_data['idP'])
-        plat_doc = plat_ref.get()
+    if not order_doc.exists:
+        return None
+
+    # Get base order data with proper error handling
+    try:
+        order = order_doc.to_dict()
+        order['id'] = order_doc.id
         
-        if plat_doc.exists:
-            plat_data = plat_doc.to_dict()
-            items.append({
-                'plat_id': cp_data['idP'],
-                'nom': plat_data.get('nom', 'Unknown'),
-                'quantite': cp_data.get('quantité', 1),
-                'prix': plat_data.get('prix', 0)
-            })
-    
-    order['items'] = items
-    
-    # Get client info if available
-    if 'idC' in order:
-        client_ref = db.collection('clients').document(order['idC'])
-        client_doc = client_ref.get()
-        if client_doc.exists:
-            client_data = client_doc.to_dict()
-            order['client'] = {
-                'username': client_data.get('username', 'Unknown'),
-                'id': order['idC']
-            }
-    
-    # Get table info
-    table_found = False
-    
-    # First try to get table from order data
-    if 'idTable' in order:
-        table_ref = db.collection('tables').document(order['idTable'])
-        table_doc = table_ref.get()
-        if table_doc.exists:
-            table_data = table_doc.to_dict()
-            order['table'] = {
-                'id': order['idTable'],
-                'nbrPersonne': table_data.get('nbrPersonne', 0)
-            }
-            table_found = True
-    
-    # If no table in order, try to find through reservations
-    if not table_found and 'idC' in order:
-        reservations_ref = db.collection('reservations').where('client_id', '==', order['idC']).limit(1)
-        for res_doc in reservations_ref.stream():
-            res_data = res_doc.to_dict()
-            if 'table_id' in res_data:
-                table_ref = db.collection('tables').document(res_data['table_id'])
-                table_doc = table_ref.get()
-                if table_doc.exists:
-                    table_data = table_doc.to_dict()
-                    order['table'] = {
-                        'id': res_data['table_id'],
-                        'nbrPersonne': table_data.get('nbrPersonne', 0)
-                    }
-                    table_found = True
-                    break
-    
-    # If still no table found, assign a default one for demo purposes
-    if not table_found:
-        tables_ref = db.collection('tables').limit(1)
-        for table_doc in tables_ref.stream():
-            table_data = table_doc.to_dict()
-            order['table'] = {
-                'id': table_doc.id,
-                'nbrPersonne': table_data.get('nbrPersonne', 2)
-            }
-            break
-    
-    return order
+        # Initialize items list
+        items = []
+        order_plat_ref = db.collection('commande_plat').where('idCmd', '==', order_doc.id)
+        
+        # Process order items
+        for cp_doc in order_plat_ref.stream():
+            cp_data = cp_doc.to_dict()
+            plat_ref = db.collection('plats').document(cp_data['idP'])
+            plat_doc = plat_ref.get()
+            
+            if plat_doc.exists:
+                plat_data = plat_doc.to_dict()
+                items.append({
+                    'plat_id': cp_data['idP'],
+                    'nom': plat_data.get('nom', 'Unknown'),
+                    'quantite': cp_data.get('quantité', 1),
+                    'prix': plat_data.get('prix', 0),
+                    'statut': cp_data.get('statut', 'non préparé')
+                })
+        
+        order['items'] = items
+        
+        # Process client info with null checks
+        if 'idC' in order and order['idC']:
+            client_ref = db.collection('clients').document(order['idC'])
+            client_doc = client_ref.get()
+            if client_doc.exists:
+                client_data = client_doc.to_dict()
+                order['client'] = {
+                    'username': client_data.get('username', 'Unknown'),
+                    'id': order['idC']
+                }
+            else:
+                order['client'] = {
+                    'username': 'Client inconnu',
+                    'id': order['idC']
+                }
+        
+        # Process table info with robust handling
+        table_info = None
+        
+        # First try direct table reference
+        if 'idTable' in order and order['idTable']:
+            table_id = order['idTable']
+            table_ref = db.collection('tables').document(table_id)
+            table_doc = table_ref.get()
+            
+            if table_doc.exists:
+                table_data = table_doc.to_dict()
+                table_info = {
+                    'id': table_id,
+                    'nbrPersonne': table_data.get('nbrPersonne', 0),
+                    'nom': table_data.get('nom', f"Table {table_id}")
+                }
+            else:
+                table_info = {
+                    'id': table_id,
+                    'nbrPersonne': 0,
+                    'nom': f"Table {table_id} (inconnue)"
+                }
+        
+        # Fallback to reservation if no direct table reference
+        if not table_info and 'idC' in order and order['idC']:
+            reservations_ref = db.collection('reservations').where('client_id', '==', order['idC']).limit(1)
+            for res_doc in reservations_ref.stream():
+                res_data = res_doc.to_dict()
+                if 'table_id' in res_data and res_data['table_id']:
+                    table_ref = db.collection('tables').document(res_data['table_id'])
+                    table_doc = table_ref.get()
+                    if table_doc.exists:
+                        table_data = table_doc.to_dict()
+                        table_info = {
+                            'id': res_data['table_id'],
+                            'nbrPersonne': table_data.get('nbrPersonne', 0),
+                            'nom': table_data.get('nom', f"Table {res_data['table_id']}")
+                        }
+        
+        order['table'] = table_info if table_info else None
+        
+        return order
+
+    except Exception as e:
+        logger.error(f"Error processing order {order_doc.id}: {str(e)}", exc_info=True)
+        return None
 
 def get_orders_by_status(status_values, db):
     """
@@ -109,25 +123,28 @@ def get_orders_by_status(status_values, db):
         db: Firestore database instance
         
     Returns:
-        list: List of orders matching the status criteria
+        list: List of orders matching the status criteria or empty list on error
     """
     try:
+        if not status_values:
+            return []
+            
         if len(status_values) == 1:
-            # If only one status value, use equality operator
             commandes_ref = db.collection('commandes').where('etat', '==', status_values[0])
         else:
-            # If multiple status values, use 'in' operator
             commandes_ref = db.collection('commandes').where('etat', 'in', status_values)
         
         commandes = []
         for doc in commandes_ref.stream():
             commande = get_order_details(doc, db)
-            commandes.append(commande)
-            
+            if commande:  # Only add if order processing succeeded
+                commandes.append(commande)
+                
         return commandes
+        
     except Exception as e:
         logger.error(f"Error fetching orders by status: {str(e)}", exc_info=True)
-        raise e
+        return []
 
 def get_all_orders(db):
     """
@@ -137,7 +154,7 @@ def get_all_orders(db):
         db: Firestore database instance
         
     Returns:
-        list: List of all orders
+        list: List of all orders or empty list on error
     """
     try:
         commandes_ref = db.collection('commandes').order_by('dateCreation', direction=firestore.Query.DESCENDING)
@@ -145,9 +162,11 @@ def get_all_orders(db):
         
         for doc in commandes_ref.stream():
             commande = get_order_details(doc, db)
-            commandes.append(commande)
-            
+            if commande:  # Only add if order processing succeeded
+                commandes.append(commande)
+                
         return commandes
+        
     except Exception as e:
         logger.error(f"Error fetching all orders: {str(e)}", exc_info=True)
-        raise e
+        return []

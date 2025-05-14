@@ -29,6 +29,8 @@ dependencies:
   flutter_dotenv: ^5.1.0
   get_it: ^7.6.0
   uuid: ^4.3.3
+  meta: ^1.16.0
+  retry: ^3.1.0
 
 
 dev_dependencies:

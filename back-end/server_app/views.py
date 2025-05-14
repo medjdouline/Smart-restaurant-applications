@@ -621,3 +621,38 @@ def get_notification_details(request, notification_id):
     except Exception as e:
         logger.error(f"Error fetching notification details: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsServer])
+def mark_all_notifications_read(request):
+    """Mark all notifications as read for the current server"""
+    try:
+        # Get server ID from authenticated user
+        server_id = request.user.uid
+        
+        # Get all unread notifications for this server
+        notifications_ref = db.collection('notifications')\
+            .where('recipient_type', '==', 'serveur')\
+            .where('read', '==', False)\
+            .stream()
+        
+        batch = db.batch()
+        count = 0
+        
+        for doc in notifications_ref:
+            batch.update(doc.reference, {
+                'read': True,
+                'read_at': datetime.now().isoformat()
+            })
+            count += 1
+        
+        # Execute batch update
+        batch.commit()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} notifications ont été marquées comme lues'
+        })
+    except Exception as e:
+        logger.error(f"Error marking all notifications as read: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

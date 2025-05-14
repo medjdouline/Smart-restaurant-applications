@@ -29,17 +29,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.primaryColor,
         elevation: 0,
-        toolbarHeight: 70, 
+        toolbarHeight: 70,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.accentColor),
           onPressed: () => Navigator.of(context).pop(),
-          padding: const EdgeInsets.only(left: 16, top: 8), 
+          padding: const EdgeInsets.only(left: 16, top: 8),
         ),
         centerTitle: true,
         title: const Padding(
-          padding: EdgeInsets.only(top: 8), 
+          padding: EdgeInsets.only(top: 8),
           child: Text(
-            'Notification',
+            'Notifications',
             style: TextStyle(
               color: AppTheme.accentColor,
               fontSize: 22,
@@ -47,7 +47,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
           ),
         ),
-        
+        actions: [
+          BlocBuilder<NotificationBloc, NotificationState>(
+            builder: (context, state) {
+              if (state.unreadCount > 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16, top: 8),
+                  child: TextButton(
+                    onPressed: () {
+                      context.read<NotificationBloc>().add(MarkAllNotificationsAsRead());
+                    },
+                    child: const Text(
+                      'Tout marquer comme lu',
+                      style: TextStyle(
+                        color: AppTheme.accentColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
       body: BlocConsumer<NotificationBloc, NotificationState>(
         listener: (context, state) {
@@ -59,35 +82,69 @@ class _NotificationScreenState extends State<NotificationScreen> {
         },
         builder: (context, state) {
           if (state.status == NotificationStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (state.notifications.isEmpty) {
             return const Center(
-              child: Text(
-                'Aucune notification',
-                style: TextStyle(
-                  color: AppTheme.accentColor,
-                  fontSize: 16,
-                ),
-              ),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+              )
             );
           }
           
-          return RefreshIndicator(
-            onRefresh: () async {
-              context.read<NotificationBloc>().add(LoadNotifications());
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              itemCount: state.notifications.length,
-              itemBuilder: (context, index) {
-                final notification = state.notifications[index];
-                return NotificationItem(notification: notification);
-              },
-            ),
-          );
+          final notifications = state.notifications;
+          
+          return notifications.isEmpty
+              ? _buildEmptyState()
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    context.read<NotificationBloc>().add(RefreshNotifications());
+                  },
+                  color: AppTheme.accentColor,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final notification = notifications[index];
+                      return NotificationItem(notification: notification);
+                    },
+                  ),
+                );
         },
+      ),
+    );
+  }
+  
+  // Construction de l'état vide
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.notifications_none,
+            size: 70,
+            color: AppTheme.accentColor.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Aucune notification',
+            style: TextStyle(
+              color: AppTheme.accentColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Les notifications concernant vos tâches apparaîtront ici',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }

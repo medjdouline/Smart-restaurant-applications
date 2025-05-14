@@ -3,6 +3,8 @@ abstract class NotificationEvent {}
 
 class LoadNotifications extends NotificationEvent {}
 
+class RefreshNotifications extends NotificationEvent {}
+
 class MarkNotificationAsRead extends NotificationEvent {
   final String notificationId;
   
