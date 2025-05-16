@@ -6,7 +6,6 @@ import 'package:good_taste/data/repositories/auth_repository.dart';
 import 'package:formz/formz.dart';
 import 'package:good_taste/presentation/screens/personal_info.dart';
 
-
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
@@ -15,99 +14,111 @@ class RegisterScreen extends StatelessWidget {
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFFE9B975),
-    resizeToAvoidBottomInset: true, 
-    body: BlocProvider<RegisterBloc>(
-      create: (context) {
-        return RegisterBloc(
-          authRepository: RepositoryProvider.of<AuthRepository>(context),
-        );
-      },
-      child: const RegisterForm(),
-    ),
-  );
-}
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE9B975),
+      resizeToAvoidBottomInset: true, 
+      body: BlocProvider<RegisterBloc>(
+        create: (context) {
+          return RegisterBloc(
+            authRepository: RepositoryProvider.of<AuthRepository>(context),
+          );
+        },
+        child: const RegisterForm(),
+      ),
+    );
+  }
 }
 
 class RegisterForm extends StatelessWidget {
   const RegisterForm({super.key});
-@override
-Widget build(BuildContext context) {
-  return BlocListener<RegisterBloc, RegisterState>(
-    listener: (context, state) {
-      if (state.status.isSuccess) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text('Inscription réussie')),
-          );
-        
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const PersonalInfoScreen(),
-          ),
-        );
-      }
-    },
-    child: SafeArea(
-      child: SingleChildScrollView(  
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+  
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<RegisterBloc, RegisterState>(
+      listener: (context, state) {
+        if (state.status.isSuccess) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(content: Text('Step 1 completed successfully!')),
+            );
           
-          child: Container(
-            height: MediaQuery.of(context).size.height - 40,
-            color: const Color(0xFFE9B975),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 40),
-                
-                Image.asset(
-                  'assets/images/logo/logo.png',
-                  width: 100,
-                  height: 100,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Good taste !',
-                  style: TextStyle(
-                    color: Color.fromARGB(255, 80, 9, 4),
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+          // Navigate to step 2 (PersonalInfoScreen)
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const PersonalInfoScreen(),
+            ),
+          );
+        }
+        
+        if (state.status.isFailure && state.errorMessage != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(state.errorMessage!),
+                backgroundColor: Colors.red,
+              ),
+            );
+        }
+      },
+      child: SafeArea(
+        child: SingleChildScrollView(  
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            
+            child: Container(
+              height: MediaQuery.of(context).size.height - 40,
+              color: const Color(0xFFE9B975),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  
+                  Image.asset(
+                    'assets/images/logo/logo.png',
+                    width: 100,
+                    height: 100,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Créez votre compte',
-                  style: TextStyle(color: Color(0xFFBA3400), fontSize: 16),
-                ),
-                const SizedBox(height: 30),
-                _UsernameInput(),
-                const SizedBox(height: 12),
-                _EmailInput(),
-                const SizedBox(height: 12),
-                _PhoneNumberInput(), 
-                const SizedBox(height: 12),
-                _PasswordInput(),
-                const SizedBox(height: 12),
-                _ConfirmPasswordInput(),
-                const SizedBox(height: 30),
-                _SignUpButton(),
-                const SizedBox(height: 12),
-                _LoginButton(),
-                const Spacer(), 
-              ],
-            ), 
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Good taste !',
+                    style: TextStyle(
+                      color: Color.fromARGB(255, 80, 9, 4),
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Créez votre compte - Étape 1/5',
+                    style: TextStyle(color: Color(0xFFBA3400), fontSize: 16),
+                  ),
+                  const SizedBox(height: 30),
+                  _UsernameInput(),
+                  const SizedBox(height: 12),
+                  _EmailInput(),
+                  const SizedBox(height: 12),
+                  _PhoneNumberInput(), 
+                  const SizedBox(height: 12),
+                  _PasswordInput(),
+                  const SizedBox(height: 12),
+                  _ConfirmPasswordInput(),
+                  const SizedBox(height: 30),
+                  _SignUpButton(),
+                  const SizedBox(height: 12),
+                  _LoginButton(),
+                  const Spacer(), 
+                ],
+              ), 
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-}
-
 
 class _UsernameInput extends StatelessWidget {
   @override
@@ -147,7 +158,6 @@ class _UsernameInput extends StatelessWidget {
     );
   }
 }
-
 
 class _EmailInput extends StatelessWidget {
   @override
@@ -189,8 +199,6 @@ class _EmailInput extends StatelessWidget {
   }
 }
 
-
-
 class _PhoneNumberInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -231,7 +239,6 @@ class _PhoneNumberInput extends StatelessWidget {
   }
 }
 
-
 class _PasswordInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -271,7 +278,6 @@ class _PasswordInput extends StatelessWidget {
     );
   }
 }
-
 
 class _ConfirmPasswordInput extends StatelessWidget {
   @override
@@ -314,7 +320,6 @@ class _ConfirmPasswordInput extends StatelessWidget {
   }
 }
 
-
 class _SignUpButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -344,13 +349,14 @@ class _SignUpButton extends StatelessWidget {
                   },
             child: state.status.isInProgress
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('S\'inscrire'),
+                : const Text('Continuer'),
           ),
         );
       },
     );
   }
 }
+
 class _LoginButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -364,10 +370,10 @@ class _LoginButton extends StatelessWidget {
           },
           child: const Text(
             'Se connecter',
-            style: TextStyle(color:  Color(0xFF245536)),
+            style: TextStyle(color: Color(0xFF245536)),
           ),
         ),
-        const Icon(Icons.arrow_forward, size: 18, color:  Color(0xFF245536)),
+        const Icon(Icons.arrow_forward, size: 18, color: Color(0xFF245536)),
       ],
     );
   }

@@ -57,17 +57,28 @@ class _AllergiesScreenState extends State<AllergiesScreen> {
     super.dispose();
   }
 
-  void _addCustomAllergy(BuildContext context) {
-    final text = _customAllergyController.text.trim();
-    if (text.isNotEmpty) {
-      setState(() {
-        _customAllergies.add(text);
-        _customAllergyController.clear();
-      });
-      
-      context.read<AllergiesBloc>().add(AllergyToggled(text));
-    }
+ // In allergies_screen.dart, update the _addCustomAllergy method:
+void _addCustomAllergy(BuildContext context) {
+  final text = _customAllergyController.text.trim();
+  if (text.isEmpty) return;
+
+  final bloc = context.read<AllergiesBloc>();
+  
+  // Check if already exists
+  if (_customAllergies.contains(text)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cette allergie existe déjà')),
+    );
+    return;
   }
+
+  setState(() {
+    _customAllergies.add(text);
+    _customAllergyController.clear();
+  });
+  
+  bloc.add(AllergyToggled(text));
+}
 
   @override
   Widget build(BuildContext context) {

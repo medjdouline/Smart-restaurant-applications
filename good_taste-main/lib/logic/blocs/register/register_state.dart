@@ -1,3 +1,4 @@
+// lib/logic/blocs/register/register_state.dart
 part of 'register_bloc.dart';
 
 class RegisterState extends Equatable {
@@ -9,7 +10,9 @@ class RegisterState extends Equatable {
     this.phoneNumber = const PhoneNumber.pure(), 
     this.status = FormzSubmissionStatus.initial,
     this.isValid = false,
-    this.isSubmitted = false, 
+    this.isSubmitted = false,
+    this.uid,
+    this.errorMessage,
   });
 
   final Username username;
@@ -19,7 +22,9 @@ class RegisterState extends Equatable {
   final PhoneNumber phoneNumber;
   final FormzSubmissionStatus status;
   final bool isValid;
-  final bool isSubmitted; 
+  final bool isSubmitted;
+  final String? uid;
+  final String? errorMessage;
 
   RegisterState copyWith({
     Username? username,
@@ -30,6 +35,8 @@ class RegisterState extends Equatable {
     FormzSubmissionStatus? status,
     bool? isValid,
     bool? isSubmitted,
+    String? uid,
+    String? errorMessage,
   }) {
     return RegisterState(
       username: username ?? this.username,
@@ -40,11 +47,13 @@ class RegisterState extends Equatable {
       status: status ?? this.status,
       isValid: isValid ?? this.isValid,
       isSubmitted: isSubmitted ?? this.isSubmitted,
+      uid: uid ?? this.uid,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 
   @override
-  List<Object> get props => [
+  List<Object?> get props => [
     username, 
     email, 
     password, 
@@ -52,6 +61,8 @@ class RegisterState extends Equatable {
     phoneNumber, 
     status, 
     isValid, 
-    isSubmitted
+    isSubmitted,
+    uid,
+    errorMessage,
   ];
 }

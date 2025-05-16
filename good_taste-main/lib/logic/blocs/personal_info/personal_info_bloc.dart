@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:good_taste/data/models/personal_info_model.dart';
 import 'personal_info_event.dart';
 import 'personal_info_state.dart';
+import 'package:good_taste/data/repositories/auth_repository.dart';
+import 'package:good_taste/di/di.dart';
 
 class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
-  PersonalInfoBloc() : super(const PersonalInfoState()) {
+  final AuthRepository authRepository;
+
+  PersonalInfoBloc({required this.authRepository}) : super(const PersonalInfoState()) {
     on<DateOfBirthChanged>(_onDateOfBirthChanged);
     on<GenderChanged>(_onGenderChanged);
     on<ProfileImageChanged>(_onProfileImageChanged);
@@ -110,39 +114,35 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
     ));
   }
 
- void _onPersonalInfoSubmitted(
-    PersonalInfoSubmitted event,
-    Emitter<PersonalInfoState> emit,
-  ) async {
-    if (!state.isFormValid) {
-      emit(state.copyWith(
-        status: PersonalInfoStatus.invalid,
-        errorMessage: 'Veuillez compléter toutes les informations requises. Vous devez avoir au moins 13 ans.',
-      ));
-      return;
-    }
-
-    emit(state.copyWith(status: PersonalInfoStatus.loading));
-
-    try {
-      
-      final profileImagePath = state.personalInfo.profileImage?.path;
-      final gender = state.personalInfo.gender;
-      final dateOfBirth = state.personalInfo.dateOfBirth;
-      
-   
-      await Future.delayed(const Duration(seconds: 1));
-      
-      
-      emit(state.copyWith(status: PersonalInfoStatus.success));
-    } catch (e) {
-      emit(state.copyWith(
-        status: PersonalInfoStatus.failure,
-        errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
-      ));
-    }
+void _onPersonalInfoSubmitted(
+  PersonalInfoSubmitted event,
+  Emitter<PersonalInfoState> emit,
+) async {
+  if (!state.isFormValid) {
+    emit(state.copyWith(
+      status: PersonalInfoStatus.invalid,
+      errorMessage: 'Veuillez compléter toutes les informations requises. Vous devez avoir au moins 13 ans.',
+    ));
+    return;
   }
 
+  emit(state.copyWith(status: PersonalInfoStatus.loading));
+
+  try {
+    await authRepository.updateUserProfile(
+      gender: state.personalInfo.gender,
+      dateOfBirth: state.personalInfo.dateOfBirth,
+      profileImage: state.personalInfo.profileImage?.path,
+    );
+    
+    emit(state.copyWith(status: PersonalInfoStatus.success));
+  } catch (e) {
+    emit(state.copyWith(
+      status: PersonalInfoStatus.failure,
+      errorMessage: e.toString(),
+    ));
+  }
+}
   bool _validateForm(PersonalInfo info) {
     if (info.dateOfBirth == null) return false;
     if (info.gender == null || info.gender!.isEmpty) return false;

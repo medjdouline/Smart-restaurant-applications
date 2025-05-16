@@ -4,7 +4,11 @@ abstract class AllergiesEvent extends Equatable {
   const AllergiesEvent();
 
   @override
-  List<Object?> get props => [];
+  List<Object> get props => [];
+}
+
+class AllergiesLoaded extends AllergiesEvent {
+  const AllergiesLoaded();
 }
 
 class AllergyToggled extends AllergiesEvent {
@@ -18,8 +22,4 @@ class AllergyToggled extends AllergiesEvent {
 
 class AllergiesSubmitted extends AllergiesEvent {
   const AllergiesSubmitted();
-}
-
-class AllergiesLoaded extends AllergiesEvent {
-  const AllergiesLoaded();
 }

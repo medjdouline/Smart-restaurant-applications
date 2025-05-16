@@ -34,8 +34,9 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authRepository = RepositoryProvider.of<AuthRepository>(context);
     return BlocProvider(
-      create: (_) => PersonalInfoBloc(),
+      create: (_) => PersonalInfoBloc(authRepository: authRepository),
       child: BlocConsumer<PersonalInfoBloc, PersonalInfoState>(
         listener: (context, state) {
           if (state.status == PersonalInfoStatus.failure || 

@@ -75,6 +75,7 @@ class LoginForm extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              
               const SizedBox(height: 8),
               const Text(
                 'Connectez-vous',
@@ -121,18 +122,18 @@ class _EmailInput extends StatelessWidget {
                   LoginEmailChanged(email),
                 ),
             keyboardType: TextInputType.emailAddress, 
-            decoration: InputDecoration(
-              hintText: 'Email',
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              border: InputBorder.none,
-              errorText:
-                  state.isSubmitted && state.email.isNotValid
-                      ? _getEmailErrorText(state)
-                      : null,
-            ),
+decoration: InputDecoration(
+  hintText: 'Email ou nom d\'utilisateur',
+  contentPadding: const EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 14,
+  ),
+  border: InputBorder.none,
+  errorText:
+      state.isSubmitted && state.email.isNotValid
+          ? _getEmailErrorText(state)
+          : null,
+),
           ),
         
         );

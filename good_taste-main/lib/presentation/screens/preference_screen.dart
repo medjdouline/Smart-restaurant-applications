@@ -18,18 +18,19 @@ class PreferenceScreen extends StatelessWidget {
       ),
       child: BlocConsumer<PreferenceBloc, PreferenceState>(
         listener: (context, state) {
-          if (state.status == PreferenceStatus.failure && state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.errorMessage ?? 'Une erreur est survenue')),
-            );
-          } else if (state.status == PreferenceStatus.success) {
-            
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/felicitation', 
-              (route) => false,
-            );
-          }
-        },
+  if (state.status == PreferenceStatus.failure) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(state.errorMessage ?? 'Erreur')),
+    );
+  }
+  if (state.status == PreferenceStatus.success) {
+    // Redirection vers l'écran de félicitations
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/felicitation',
+      (route) => false,
+    );
+  }
+},
         builder: (context, state) {
           
           final List<String> preferences = [

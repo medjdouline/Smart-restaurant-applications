@@ -5,7 +5,7 @@ from . import views
 
 urlpatterns = [
     # Authentication endpoints (already implemented)
-    path('auth/signup/step1/', client_signup_step1, name='client_signup_step1'),
+    path('signup/step1/', client_signup_step1, name='client_signup_step1'),
     path('auth/signup/step2/', client_signup_step2, name='client_signup_step2'),
     path('auth/signup/step3/', client_signup_step3, name='client_signup_step3'),
     path('auth/signup/step4/', client_signup_step4, name='client_signup_step4'),
