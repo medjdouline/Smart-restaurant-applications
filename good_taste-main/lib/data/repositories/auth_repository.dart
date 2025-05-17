@@ -2,28 +2,26 @@ import 'package:good_taste/data/models/user.dart';
 import 'package:good_taste/data/models/allergies_model.dart';
 import 'package:good_taste/data/models/regime_model.dart';
 import 'package:good_taste/data/models/preferences_model.dart';
+import 'package:good_taste/data/api/auth_api_service.dart';
+import 'package:good_taste/data/api/auth_api_service.dart';
+import 'package:good_taste/data/repositories/allergies_repository.dart';
 import 'package:logging/logging.dart';
 import 'dart:async';
 
 class AuthRepository {
   final Logger _logger = Logger('AuthRepository');
+  final AuthApiService _authApiService;
+  final AllergiesRepository _allergiesRepository;
   
   final _userController = StreamController<User>.broadcast();
-
-  User _currentUser = User(
-    id: 'fake-id', 
-    email: 'fake@email.com', 
-    name: 'Marie Dupont',
-    profileImage: 'assets/images/profile_avatar.png',
-    phoneNumber: '0612345678',
-    gender: 'Femme', 
-    dateOfBirth: DateTime(1990, 1, 1),
-    allergies: const AllergiesModel(), 
-    regimes: const RegimeModel(), 
-    preferences: const PreferencesModel(), 
-  );
+  User _currentUser = User.empty;
+  String? _currentUid;
   
-  AuthRepository() {
+  AuthRepository({
+    required AuthApiService authApiService,
+    required AllergiesRepository allergiesRepository,
+  }) : _authApiService = authApiService,
+       _allergiesRepository = allergiesRepository {
     _userController.add(_currentUser);
   }
 
@@ -33,116 +31,9 @@ class AuthRepository {
     return _currentUser;
   }
   
-  Future<void> signUp({
-    required String email,
-    required String password,
-    required String username,
-    required String phoneNumber,
-    String? gender,
-    DateTime? dateOfBirth,
-    String? profileImage,
-    AllergiesModel? allergies,
-    RegimeModel? regimes,
-    PreferencesModel? preferences,
-  }) async {
-    
-    _currentUser = User(
-      id: 'user-${DateTime.now().millisecondsSinceEpoch}',
-      email: email,
-      name: username,
-      profileImage: profileImage ?? 'assets/images/profile_avatar.png',
-      phoneNumber: phoneNumber,
-      gender: gender,
-      dateOfBirth: dateOfBirth,
-      allergies: allergies ?? const AllergiesModel(),
-      regimes: regimes ?? const RegimeModel(),
-      preferences: preferences ?? const PreferencesModel(),
-    );
-    
-    _userController.add(_currentUser);
-
-    _logger.info("Utilisateur simulé inscrit avec email: $email, username: $username, téléphone: $phoneNumber, genre: $gender, dateOfBirth: $dateOfBirth, profileImage: $profileImage, allergies: ${allergies?.allergies}, régimes: ${regimes?.regimes}, préférences: ${preferences?.preferences}");
-    return Future.delayed(Duration(seconds: 1));
+  String? getCurrentUid() {
+    return _currentUid;
   }
-  
-  Future<void> updateUserProfile({
-    String? name,
-    String? email,
-    String? phoneNumber,
-    String? gender,
-    DateTime? dateOfBirth,
-    String? profileImage,
-    AllergiesModel? allergies,
-    RegimeModel? regimes,
-    PreferencesModel? preferences,
-  }) async {
-    await Future.delayed(Duration(seconds: 1));
-    
-    _currentUser = User(
-      id: _currentUser.id,
-      email: email ?? _currentUser.email,
-      name: name ?? _currentUser.name,
-      phoneNumber: phoneNumber ?? _currentUser.phoneNumber,
-      profileImage: profileImage ?? _currentUser.profileImage,
-      gender: gender ?? _currentUser.gender,
-      dateOfBirth: dateOfBirth ?? _currentUser.dateOfBirth,
-      allergies: allergies ?? _currentUser.allergies,
-      regimes: regimes ?? _currentUser.regimes,
-      preferences: preferences ?? _currentUser.preferences,
-    );
-    
-    _logger.info("Mise à jour du profil utilisateur: ${_currentUser.name}, préférences: ${_currentUser.preferences.preferences}");
-    _userController.add(_currentUser);
-    return;
-  }
-  
-  Future<void> logIn({
-    required String email,
-    required String password,
-  }) async {
-    
-    if (email == "admin@example.com") {
-      _currentUser = User(
-        id: 'admin-id',
-        email: email,
-        name: 'Admin',
-        profileImage: 'assets/images/admin_avatar.png',
-        phoneNumber: '0600000000',
-        gender: 'Homme',
-        dateOfBirth: DateTime(1985, 5, 15),
-        allergies: const AllergiesModel(),
-        regimes: const RegimeModel(),
-        preferences: const PreferencesModel(),
-      );
-    } else {
-    
-      String username = email.split('@')[0];
-      
-      _currentUser = User(
-        id: 'user-${DateTime.now().millisecondsSinceEpoch}',
-        email: email,
-        name: username, 
-        profileImage: 'assets/images/profile_avatar.png',
-        phoneNumber: '0610101010',
-        gender: 'Homme',
-        dateOfBirth: DateTime(1990, 1, 1),
-        allergies: const AllergiesModel(),
-        regimes: const RegimeModel(),
-        preferences: const PreferencesModel(),
-      );
-    }
-    _userController.add(_currentUser);
-    _logger.info("Utilisateur simulé connecté avec email: $email");
-    return Future.delayed(Duration(seconds: 1)); 
-  }
-  
-  Future<void> logOut() async {
-    _currentUser = User.empty;
-    _userController.add(_currentUser);
-    _logger.info("Utilisateur simulé déconnecté");
-    return Future.delayed(Duration(seconds: 1)); 
-  }
-  
   
   bool isValidAge(DateTime dateOfBirth) {
     final today = DateTime.now();
@@ -150,8 +41,234 @@ class AuthRepository {
     final age = difference / 365;
     return age >= 13;
   }
-  
-  void dispose() {
-    _userController.close();
+
+  Future<String> signUp({
+    required String email,
+    required String password,
+    required String username,
+    required String phoneNumber,
+  }) async {
+    try {
+      final response = await _authApiService.signUpStep1(
+        email: email,
+        password: password,
+        passwordConfirmation: password,
+        username: username,
+        phoneNumber: phoneNumber,
+      );
+      if (!response.success) {
+        throw Exception(response.error ?? 'Signup failed');
+      }
+      
+      // Store the UID for later steps
+      _currentUid = response.data['uid'];
+      
+      // Create a basic user with the information we have
+      _currentUser = User(
+        id: _currentUid!,
+        email: email,
+        name: username,
+        profileImage: 'assets/images/profile_avatar.png',
+        phoneNumber: phoneNumber,
+        gender: null,
+        dateOfBirth: null,
+        allergies: const AllergiesModel(),
+        regimes: const RegimeModel(),
+        preferences: const PreferencesModel(),
+      );
+      
+      _userController.add(_currentUser);
+      
+      _logger.info("User signed up with email: $email, username: $username, phone: $phoneNumber");
+      
+      return _currentUid!;
+    } catch (e) {
+      _logger.severe("Signup failed: $e");
+      throw Exception('Failed to sign up: $e');
+    }
   }
+  
+
+
+// In auth_repository.dart
+Future<void> updateUserProfile({
+        RegimeModel? regimes,
+  PreferencesModel? preferences,
+  // Step 1 fields
+  String? name,
+  String? email,
+  String? phoneNumber,
+  
+  // Step 2 fields
+  String? gender,
+  DateTime? dateOfBirth,
+  String? profileImage,
+ 
+  
+  // Step 3 fields
+  AllergiesModel? allergies,
+}) async {
+  try {
+    // Handle Step 1 updates
+    if (name != null || email != null || phoneNumber != null) {
+      _currentUser = _currentUser.copyWith(
+        name: name ?? _currentUser.name,
+        email: email ?? _currentUser.email,
+        phoneNumber: phoneNumber ?? _currentUser.phoneNumber,
+      );
+      _userController.add(_currentUser);
+    }
+
+    // Handle Step 2 updates
+    if (gender != null && dateOfBirth != null && _currentUid != null) {
+      final response = await _authApiService.signUpStep2(
+        uid: _currentUid!,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+      );
+
+      if (!response.success) {
+        throw Exception(response.error ?? 'Personal info update failed');
+      }
+
+      _currentUser = _currentUser.copyWith(
+        gender: gender,
+        dateOfBirth: dateOfBirth,
+        profileImage: profileImage,
+      );
+      _userController.add(_currentUser);
+    }
+
+    // Handle Step 3 updates (only if step 2 is complete)
+    if (allergies != null && _currentUid != null && _currentUser.gender != null) {
+      final response = await _authApiService.signUpStep3(
+        uid: _currentUid!,
+        allergies: allergies.allergies,
+      );
+
+      if (!response.success) {
+        throw Exception(response.error ?? 'Failed to save allergies');
+      }
+
+      _currentUser = _currentUser.copyWith(allergies: allergies);
+      _userController.add(_currentUser);
+    }
+   if (regimes != null && _currentUid != null) {
+      final response = await _authApiService.signUpStep4(
+        uid: _currentUid!,
+        restrictions: regimes.regimes, // Utilise .regimes comme défini dans votre modèle
+      );
+
+      if (!response.success) {
+        throw Exception(response.error ?? 'Échec de l\'enregistrement des régimes');
+      }
+
+      _currentUser = _currentUser.copyWith(regimes: regimes);
+      _userController.add(_currentUser);
+    }
+    // ▲▲▲ FIN DE L'AJOUT ▲▲▲
+//step 5
+if (preferences != null && _currentUid != null) {
+      final response = await _authApiService.signUpStep5(
+        uid: _currentUid!,
+        preferences: preferences.preferences,
+      );
+
+      if (!response.success) {
+        throw Exception(response.error ?? 'Échec de l\'enregistrement des préférences');
+      }
+
+      _currentUser = _currentUser.copyWith(preferences: preferences);
+      _userController.add(_currentUser);
+      
+      // Si vous avez besoin du token de connexion retourné par le backend:
+      final customToken = response.data['custom_token'];
+      // ... faites ce que vous devez faire avec ce token
+    }
+    // ▲▲▲ FIN DE L'AJOUT ▲▲▲
+    
+  } catch (e) {
+    _logger.severe("Échec de la mise à jour du profil: $e");
+    throw Exception('Échec de la mise à jour du profil: $e');
+  }
+}
+
+  Future<void> logOut() async {
+    _currentUser = User.empty;
+    _userController.add(_currentUser);
+    _logger.info("Utilisateur simulé déconnecté");
+    return Future.delayed(Duration(seconds: 1)); 
+  }
+  
+
+Future<void> logIn({
+  required String identifier,
+  required String password,
+}) async {
+  try {
+    final response = await _authApiService.login(
+      identifier: identifier,
+      password: password,
+    );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Login failed');
+    }
+    
+    _currentUid = response.data['uid'];
+
+        if (response.data['token'] != null) {
+  await _authApiService.setAuthToken(response.data['token']); // Fixed
+}
+    
+    // For email vs username handling
+    String email = identifier.contains('@') ? identifier : '';
+    String username = !identifier.contains('@') ? identifier : email.split('@')[0];
+    
+    _currentUser = User(
+      id: _currentUid!,
+      email: email,
+      name: username,
+      profileImage: 'assets/images/profile_avatar.png',
+      phoneNumber: '',
+      gender: null,
+      dateOfBirth: null,
+      allergies: const AllergiesModel(),
+      regimes: const RegimeModel(),
+      preferences: const PreferencesModel(),
+    );
+    
+    _userController.add(_currentUser);
+    
+    _logger.info("User logged in with identifier: $identifier");
+  } catch (e) {
+    _logger.severe("Login failed: $e");
+    throw Exception('Failed to login: $e');
+  }
+}
+Future<List<String>> getAllergies() async {
+  try {
+    final response = await _authApiService.getAllergies(); // Will call /client-mobile/allergies/
+    if (!response.success) throw Exception(response.error);
+    return List<String>.from(response.data['allergies'] ?? []);
+  } catch (e) {
+    _logger.severe("Failed to get allergies: $e");
+    // Fallback to local storage if needed
+    final user = getCurrentUser();
+    return _allergiesRepository.getAllergies(userId: user.id);
+  }
+}
+
+Future<void> updateAllergies(List<String> allergies) async {
+  try {
+    _logger.info("Starting updateAllergies with: $allergies");
+    
+    // Rest of the code...
+    
+    _logger.info("Successfully updated allergies");
+  } catch (e) {
+    _logger.severe("Failed to update allergies: $e");
+    throw Exception('Failed to update allergies: $e');
+  }
+}
 }
