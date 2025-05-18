@@ -1,4 +1,4 @@
-// lib/main.dart (updated)
+// lib/main.dart (with added logging configuration)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:good_taste/data/repositories/auth_repository.dart';
@@ -29,11 +29,32 @@ import 'package:good_taste/logic/blocs/menu/menu_bloc.dart';
 import 'package:good_taste/data/repositories/dish_repository.dart';
 import 'package:good_taste/presentation/screens/favorites/favorites_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:good_taste/data/services/firebase_auth_service.dart';
 import 'package:good_taste/di/di.dart'; // Import the dependency injection
+import 'package:logging/logging.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Configure logging
+  Logger.root.level = Level.ALL; // Set to show all log levels
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+    if (record.error != null) {
+      print('Error: ${record.error}');
+    }
+    if (record.stackTrace != null) {
+      print('Stack trace: ${record.stackTrace}');
+    }
+  });
+  
+  // Log startup info and connection URL
+  final logger = Logger('main');
+  logger.info('Starting app...');
+  logger.info('API base URL: ${DependencyInjection.apiBaseUrl}');
+  
   await Firebase.initializeApp();
   runApp(MyApp());
 }

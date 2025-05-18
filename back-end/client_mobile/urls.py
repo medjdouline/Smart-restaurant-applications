@@ -10,7 +10,7 @@ urlpatterns = [
     path('auth/signup/step3/', client_signup_step3, name='client_signup_step3'),
     path('auth/signup/step4/', client_signup_step4, name='client_signup_step4'),
     path('auth/signup/step5/', client_signup_step5, name='client_signup_step5'),
-    path('auth/login/', client_login, name='client_login'),
+    path('auth/client/login/', client_login, name='client_login'),
 
     # Profile endpoints
     path('profile/', views.view_client_profile, name='view_client_profile'),

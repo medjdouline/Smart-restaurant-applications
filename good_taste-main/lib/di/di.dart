@@ -1,10 +1,14 @@
-// lib/di/di.dart
+// lib/di/di.dart (updated)
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:good_taste/data/api/api_client.dart';
 import 'package:good_taste/data/api/auth_api_service.dart';
 import 'package:good_taste/data/repositories/auth_repository.dart';
 import 'package:good_taste/data/repositories/allergies_repository.dart';
 import 'package:good_taste/data/repositories/regime_repository.dart';
+import 'package:good_taste/data/services/firebase_auth_service.dart';
+import 'package:flutter/foundation.dart';
 
 /// Class to handle dependency injection for the app
 class DependencyInjection {
@@ -22,9 +26,30 @@ class DependencyInjection {
   static AuthApiService? _authApiService;
   static AuthRepository? _authRepository;
   static AllergiesRepository? _allergiesRepository;
+  static FirebaseAuthService? _firebaseAuthService;
 
-  // API base URL - update this to match your backend URL
-  static const String apiBaseUrl = 'http://127.0.0.1:8000/api/';
+  // API base URL - different URLs for emulator vs real device
+static String get apiBaseUrl {
+  const String deviceUrl = 'http://192.168.100.13:8000/api/';  // Replace with your actual IP
+  const String emulatorUrl = 'http://10.0.2.2:8000/api/';
+  const String webUrl = 'http://localhost:8000/api/';
+  
+  // More reliable way to determine if running on emulator
+  if (Platform.isAndroid) {
+    try {
+      // For debugging - print the base URL being used
+      debugPrint("Using API URL: $deviceUrl");
+      return deviceUrl;  // Always use device URL for physical testing
+    } catch (e) {
+      debugPrint("Error determining platform: $e");
+      return deviceUrl;
+    }
+  } else if (kIsWeb) {
+    return webUrl;
+  } else {
+    return deviceUrl;
+  }
+}
 
   // Get the API client
   static ApiClient getApiClient() {
@@ -41,6 +66,12 @@ class DependencyInjection {
       apiClient: getApiClient(),
     );
     return _authApiService!;
+  }
+
+  // Get the Firebase Auth Service
+  static FirebaseAuthService getFirebaseAuthService() {
+    _firebaseAuthService ??= FirebaseAuthService();
+    return _firebaseAuthService!;
   }
 
   // Get the Allergies repository
@@ -60,7 +91,8 @@ class DependencyInjection {
   static AuthRepository getAuthRepository() {
     _authRepository ??= AuthRepository(
       authApiService: getAuthApiService(),
-      allergiesRepository: getAllergiesRepository(), // Added this required parameter
+      allergiesRepository: getAllergiesRepository(),
+      firebaseAuthService: getFirebaseAuthService(),
     );
     return _authRepository!;
   }

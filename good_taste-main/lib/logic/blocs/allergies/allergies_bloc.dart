@@ -68,6 +68,7 @@ class AllergiesBloc extends Bloc<AllergiesEvent, AllergiesState> {
     }
   }
 
+// In allergies_bloc.dart - Need to update this method
 Future<void> _onAllergiesSubmitted(
   AllergiesSubmitted event,
   Emitter<AllergiesState> emit,
@@ -76,13 +77,14 @@ Future<void> _onAllergiesSubmitted(
   emit(state.copyWith(status: AllergiesStatus.loading));
 
   try {
-    // Only update allergies, nothing else
+    // Only call the updateAllergies method, nothing else
     await _authRepository.updateAllergies(state.selectedAllergies);
     
     emit(state.copyWith(
       status: AllergiesStatus.success,
+      savedAllergies: state.selectedAllergies, // Update saved allergies to match selected
     ));
-     _logger.info("Successfully submitted allergies");
+    _logger.info("Successfully submitted allergies");
   } catch (e) {
     _logger.severe('Error submitting allergies: $e');
     emit(state.copyWith(
