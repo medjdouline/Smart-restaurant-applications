@@ -108,4 +108,33 @@ class ReservationRepository {
   }
 }
 
+  Future<List<Reservation>> checkAndUpdateLateReservations(List<Reservation> reservations) async {
+    List<Reservation> updatedReservations = [];
+    bool hasChanges = false;
+    
+    for (var reservation in reservations) {
+      Reservation currentReservation = reservation;
+      
+      // Vérifier si la réservation est en retard et doit être mise à jour
+      final Reservation? updatedReservation = await _service.updateReservationStatusBasedOnDelay(reservation);
+      
+      if (updatedReservation != null) {
+        // Si une mise à jour est nécessaire, remplacer la réservation
+        currentReservation = updatedReservation;
+        hasChanges = true;
+        
+        // Mettre à jour dans la "base de données"
+        if (updatedReservation.status == ReservationStatus.canceled) {
+          await _service.cancelReservation(reservation.id);
+        } else if (updatedReservation.status == ReservationStatus.late) {
+          // Utiliser la nouvelle méthode pour marquer comme en retard
+          await _service.markReservationAsLate(reservation.id);
+        }
+      }
+      
+      updatedReservations.add(currentReservation);
+    }
+    
+    return updatedReservations;
+  }
 }

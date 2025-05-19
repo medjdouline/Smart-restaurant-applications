@@ -36,21 +36,27 @@ class RegisterForm extends StatelessWidget {
 @override
 Widget build(BuildContext context) {
   return BlocListener<RegisterBloc, RegisterState>(
-    listener: (context, state) {
-      if (state.status.isSuccess) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(content: Text('Inscription réussie')),
-          );
-        
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const PersonalInfoScreen(),
-          ),
-        );
-      }
-    },
+listener: (context, state) {
+  if (state.status.isSuccess) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Inscription réussie')),
+      );
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const PersonalInfoScreen(),
+      ),
+    );
+  } else if (state.status.isFailure && state.errorMessage != null) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(state.errorMessage!)),
+      );
+  }
+},
     child: SafeArea(
       child: SingleChildScrollView(  
         child: Padding(

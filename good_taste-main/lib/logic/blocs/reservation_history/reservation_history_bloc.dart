@@ -19,6 +19,7 @@ class ReservationHistoryBloc extends Bloc<ReservationHistoryEvent, ReservationHi
     on<LoadReservationHistory>(_onLoadReservationHistory);
     on<DeleteReservation>(_onDeleteReservation);
     on<CancelReservation>(_onCancelReservation);
+    on<CheckLateReservations>(_onCheckLateReservations);
   }
 
   void _onLoadReservationHistory(
@@ -29,7 +30,11 @@ class ReservationHistoryBloc extends Bloc<ReservationHistoryEvent, ReservationHi
     try {
       final user = authBloc.state.user;
       final reservations = await repository.getReservationHistory(user);
-      emit(ReservationHistoryLoaded(reservations: reservations));
+      
+      // Vérifier et mettre à jour les réservations en retard
+      final updatedReservations = await repository.checkAndUpdateLateReservations(reservations);
+      
+      emit(ReservationHistoryLoaded(reservations: updatedReservations));
     } catch (e) {
       emit(ReservationHistoryError(message: e.toString()));
     }
@@ -61,7 +66,7 @@ class ReservationHistoryBloc extends Bloc<ReservationHistoryEvent, ReservationHi
     }
   }
 
-void _onCancelReservation(
+  void _onCancelReservation(
     CancelReservation event,
     Emitter<ReservationHistoryState> emit,
   ) async {
@@ -98,5 +103,36 @@ void _onCancelReservation(
       }
     }
   }
-}
 
+  void _onCheckLateReservations(
+    CheckLateReservations event,
+    Emitter<ReservationHistoryState> emit,
+  ) async {
+    if (state is ReservationHistoryLoaded) {
+      final currentState = state as ReservationHistoryLoaded;
+      
+      try {
+        // Vérifier et mettre à jour les réservations en retard
+        // Cette méthode va maintenant aussi créer des notifications
+        final updatedReservations = await repository.checkAndUpdateLateReservations(currentState.reservations);
+        
+        // Émettre le nouvel état uniquement si des changements ont été effectués
+        if (!_areReservationsEqual(currentState.reservations, updatedReservations)) {
+          emit(ReservationHistoryLoaded(reservations: updatedReservations));
+        }
+      } catch (e) {
+        emit(ReservationHistoryError(message: e.toString()));
+      }
+    }
+  }
+
+  bool _areReservationsEqual(List<Reservation> list1, List<Reservation> list2) {
+    if (list1.length != list2.length) return false;
+    
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i].status != list2[i].status) return false;
+    }
+    
+    return true;
+  }
+}

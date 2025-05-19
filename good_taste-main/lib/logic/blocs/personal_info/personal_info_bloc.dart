@@ -1,11 +1,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:good_taste/data/models/personal_info_model.dart';
+import 'package:good_taste/data/api/auth_api_service.dart';
+import 'package:good_taste/data/repositories/auth_repository.dart';
 import 'personal_info_event.dart';
+import 'package:good_taste/data/api/api_client.dart';
 import 'personal_info_state.dart';
 
 class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
-  PersonalInfoBloc() : super(const PersonalInfoState()) {
+  final AuthRepository authRepository;
+
+  PersonalInfoBloc({required this.authRepository}) : super(const PersonalInfoState()) {
     on<DateOfBirthChanged>(_onDateOfBirthChanged);
     on<GenderChanged>(_onGenderChanged);
     on<ProfileImageChanged>(_onProfileImageChanged);
@@ -40,6 +45,18 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
       errorMessage: null,
     ));
   }
+
+  bool _validateForm(PersonalInfo info) {
+  if (info.dateOfBirth == null) return false;
+  if (info.gender == null || info.gender!.isEmpty) return false;
+  
+  // Calculate age
+  final today = DateTime.now();
+  final difference = today.difference(info.dateOfBirth!).inDays;
+  final age = difference / 365;
+  
+  return age >= 13;
+}
 
   void _onGenderChanged(
     GenderChanged event,
@@ -110,48 +127,43 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
     ));
   }
 
- void _onPersonalInfoSubmitted(
-    PersonalInfoSubmitted event,
-    Emitter<PersonalInfoState> emit,
-  ) async {
-    if (!state.isFormValid) {
-      emit(state.copyWith(
-        status: PersonalInfoStatus.invalid,
-        errorMessage: 'Veuillez compléter toutes les informations requises. Vous devez avoir au moins 13 ans.',
-      ));
-      return;
-    }
+// In the _onPersonalInfoSubmitted method of PersonalInfoBloc
+void _onPersonalInfoSubmitted(
+  PersonalInfoSubmitted event,
+  Emitter<PersonalInfoState> emit,
+) async {
+  if (!state.isFormValid) {
+    emit(state.copyWith(
+      status: PersonalInfoStatus.invalid,
+      errorMessage: 'Veuillez compléter toutes les informations requises. Vous devez avoir au moins 13 ans.',
+    ));
+    return;
+  }
 
-    emit(state.copyWith(status: PersonalInfoStatus.loading));
+  emit(state.copyWith(status: PersonalInfoStatus.loading));
 
-    try {
-      
-      final profileImagePath = state.personalInfo.profileImage?.path;
-      final gender = state.personalInfo.gender;
-      final dateOfBirth = state.personalInfo.dateOfBirth;
-      
-   
-      await Future.delayed(const Duration(seconds: 1));
-      
-      
+  try {
+    final currentUid = authRepository.getCurrentUser().id;
+    
+    final response = await authRepository.completePersonalInfo(
+      uid: currentUid,
+      dateOfBirth: state.personalInfo.dateOfBirth!,
+      gender: state.personalInfo.gender!,
+    );
+
+    if (response.success) {
       emit(state.copyWith(status: PersonalInfoStatus.success));
-    } catch (e) {
+    } else {
       emit(state.copyWith(
         status: PersonalInfoStatus.failure,
-        errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
+        errorMessage: response.error ?? 'Une erreur est survenue',
       ));
     }
+  } catch (e) {
+    emit(state.copyWith(
+      status: PersonalInfoStatus.failure,
+      errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
+    ));
   }
-
-  bool _validateForm(PersonalInfo info) {
-    if (info.dateOfBirth == null) return false;
-    if (info.gender == null || info.gender!.isEmpty) return false;
-    
-    
-    final today = DateTime.now();
-    final difference = today.difference(info.dateOfBirth!).inDays;
-    final age = difference / 365;
-    
-    return age >= 13;
-  }
+}
 }

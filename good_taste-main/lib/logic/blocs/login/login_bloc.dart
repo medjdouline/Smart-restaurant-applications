@@ -47,7 +47,7 @@ void _onSubmitted(
     emit(state.copyWith(status: FormzSubmissionStatus.inProgress));
     try {
       await _authRepository.logIn(
-        identifier: state.email.value, 
+        email: state.email.value, 
         password: state.password.value,
       );
       

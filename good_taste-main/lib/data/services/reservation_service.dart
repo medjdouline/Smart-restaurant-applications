@@ -241,4 +241,112 @@ bool _hasTimeOverlap(String timeSlot1, String timeSlot2) {
     return null; // Aucune table disponible
   }
 
+  bool isReservationLate(Reservation reservation) {
+    if (reservation.status != ReservationStatus.pending) {
+      return false;
+    }
+    
+    final DateTime now = DateTime.now();
+    final DateTime reservationDateTime = _getReservationDateTime(reservation);
+    
+    // Calculer la différence en minutes
+    final difference = now.difference(reservationDateTime).inMinutes;
+    
+    return difference >= 10; // En retard si 10 minutes ou plus
+  }
+
+   bool isReservationVeryLate(Reservation reservation) {
+    if (reservation.status != ReservationStatus.pending && 
+        reservation.status != ReservationStatus.late) {
+      return false;
+    }
+    
+    final DateTime now = DateTime.now();
+    final DateTime reservationDateTime = _getReservationDateTime(reservation);
+    
+    // Calculer la différence en minutes
+    final difference = now.difference(reservationDateTime).inMinutes;
+    
+    return difference >= 20; // Très en retard si 20 minutes ou plus
+  }
+
+    DateTime _getReservationDateTime(Reservation reservation) {
+    // Extraire l'heure de début du timeSlot (format: "10h-12h")
+    final String startHourStr = reservation.timeSlot.split('h')[0];
+    final int startHour = int.parse(startHourStr);
+    
+    // Créer un DateTime combinant la date de réservation et l'heure de début
+    return DateTime(
+      reservation.date.year,
+      reservation.date.month,
+      reservation.date.day,
+      startHour,
+      0, // minutes
+    );
+  }
+
+   Future<Reservation?> updateReservationStatusBasedOnDelay(Reservation reservation) async {
+    // Vérifier si très en retard (20 minutes ou plus)
+    if (isReservationVeryLate(reservation)) {
+      // Annuler la réservation
+      return Reservation(
+        id: reservation.id,
+        userId: reservation.userId,
+        date: reservation.date,
+        timeSlot: reservation.timeSlot,
+        numberOfPeople: reservation.numberOfPeople,
+        tableNumber: reservation.tableNumber,
+        status: ReservationStatus.canceled, // Passer à annulé
+      );
+    } 
+    // Vérifier si en retard (10 minutes ou plus)
+    else if (isReservationLate(reservation)) {
+      // Marquer comme en retard
+      return Reservation(
+        id: reservation.id,
+        userId: reservation.userId,
+        date: reservation.date,
+        timeSlot: reservation.timeSlot,
+        numberOfPeople: reservation.numberOfPeople,
+        tableNumber: reservation.tableNumber,
+        status: ReservationStatus.late, // Passer à en retard
+      );
+    }
+    
+    // Pas de changement nécessaire
+    return null;
+  }
+
+    Future<bool> markReservationAsLate(String reservationId) async {
+    // Simuler un délai réseau
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    final reservationIndex = _reservations.indexWhere(
+      (reservation) => reservation.id == reservationId
+    );
+    
+    if (reservationIndex >= 0) {
+      final reservation = _reservations[reservationIndex];
+      if (reservation.status == ReservationStatus.pending) {
+        // Créer une nouvelle réservation avec le statut 'late'
+        final updatedReservation = Reservation(
+          id: reservation.id,
+          userId: reservation.userId,
+          date: reservation.date,
+          timeSlot: reservation.timeSlot,
+          numberOfPeople: reservation.numberOfPeople,
+          tableNumber: reservation.tableNumber,
+          status: ReservationStatus.late,
+        );
+        
+        // Remplacer la réservation dans la liste
+        _reservations[reservationIndex] = updatedReservation;
+        debugPrint('Réservation marquée en retard: $reservationId');
+        return true;
+      }
+    }
+    
+    debugPrint('Échec du marquage en retard de la réservation: $reservationId');
+    return false;
+  }
 }

@@ -5,6 +5,7 @@ import 'package:good_taste/data/models/notification_model.dart'as app_notificati
 import 'package:good_taste/logic/blocs/notification/notification_bloc.dart';
 import 'package:intl/intl.dart';
 
+
 class NotificationView extends StatelessWidget {
   const NotificationView({super.key});
 
@@ -65,15 +66,29 @@ class NotificationView extends StatelessWidget {
     app_notification.Notification notification,
   ) {
     
-    Color backgroundColor =
-        notification.type == app_notification.NotificationType.reservation
-            ? const Color(0xFF245536) // Green for reservations
-            : const Color(0xFFBA3400); 
-
-    IconData iconData =
-        notification.type == app_notification.NotificationType.reservation
-            ? Icons.restaurant
-            : Icons.card_giftcard;
+    Color backgroundColor;
+    IconData iconData;
+    
+    // Déterminer la couleur et l'icône en fonction du type de notification
+    switch (notification.type) {
+      case app_notification.NotificationType.reservation:
+        backgroundColor = const Color(0xFF245536); // Vert pour les réservations
+        iconData = Icons.restaurant;
+        break;
+      case app_notification.NotificationType.late:
+        backgroundColor = const Color(0xFFFFA500); // Orange pour les retards
+        iconData = Icons.timer;
+        break;
+      case app_notification.NotificationType.canceled:
+        backgroundColor = const Color(0xFFBA3400); // Rouge pour les annulations
+        iconData = Icons.cancel;
+        break;
+      case app_notification.NotificationType.fidelity:
+      default:
+        backgroundColor = const Color(0xFFBA3400); // Rouge pour fidélité et autres
+        iconData = Icons.card_giftcard;
+        break;
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -106,16 +121,54 @@ class NotificationView extends StatelessWidget {
                           'dd/MM/yyyy HH:mm',
                         ).format(notification.date),
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
                   ),
+                      
+
+// Ajouter des instructions de contact pour les notifications de retard ou d'annulation
+                      if (notification.type == app_notification.NotificationType.late || 
+                          notification.type == app_notification.NotificationType.canceled)
+                        Container(
+                          margin: const EdgeInsets.only(top: 15),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: backgroundColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: backgroundColor.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Contact Restaurant:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  Icon(Icons.phone, size: 16, color: backgroundColor),
+                                  const SizedBox(width: 5),
+                                  const Text('+225 07 07 07 07 07'),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  Icon(Icons.email, size: 16, color: backgroundColor),
+                                  const SizedBox(width: 5),
+                                  const Text('contact@goodtaste.ci'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                  ],
+                ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        'Fermer',
-                        style: TextStyle(color: const Color(0xFFBA3400)),
-                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Fermer'),
                     ),
                   ],
                 ),
@@ -185,4 +238,8 @@ class NotificationView extends StatelessWidget {
       return '${difference.inMinutes} min';
     }
   }
+  
+  
+  
+  
 }

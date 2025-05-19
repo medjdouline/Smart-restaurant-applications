@@ -223,39 +223,60 @@ class _AllergiesScreenState extends State<AllergiesScreen> {
                   const SizedBox(height: 100),
                   
                   // Bouton suivant
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF245536), 
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        elevation: 0,
-                      ),
-                      onPressed: state.status == AllergiesStatus.loading
-                          ? null
-                          : () {
-                              context.read<AllergiesBloc>().add(const AllergiesSubmitted());
-                            },
-                      child: state.status == AllergiesStatus.loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Suivant',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                 SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF245536), 
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      elevation: 0,
+    ),
+    onPressed: state.status == AllergiesStatus.loading
+        ? null
+        : () {
+            if (state.selectedAllergies.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Veuillez sélectionner au moins une allergie ou cliquer sur "Passer"')),
+              );
+            } else {
+              context.read<AllergiesBloc>().add(const AllergiesSubmitted());
+            }
+          },
+    child: state.status == AllergiesStatus.loading
+        ? const SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+            ),
+          )
+        : const Text(
+            'Suivant',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+  ),
+),
+const SizedBox(height: 10),
+TextButton(
+  onPressed: state.status == AllergiesStatus.loading
+      ? null
+      : () {
+          context.read<AllergiesBloc>().add(const AllergiesSubmitted());
+        },
+  child: const Text(
+    'Passer',
+    style: TextStyle(
+      color: Color(0xFF245536),
+      fontSize: 16,
+    ),
+  ),
+),
+const SizedBox(height: 20),
                 ],
               ),
             ),

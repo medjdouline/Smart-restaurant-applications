@@ -27,6 +27,9 @@ class ReservationHistoryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ReservationHistoryBloc>().add(const CheckLateReservations());
+    });
     return Scaffold(
       backgroundColor: const Color(0xFFE9B975), 
       appBar: AppBar(
@@ -244,6 +247,8 @@ class ReservationCard extends StatelessWidget {
         return const Color(0xFFBA3400); // Rouge
       case ReservationStatus.completed:
         return Colors.grey; // Gris
+        case ReservationStatus.late:
+        return const Color(0xFFFFA500);
     }
   }
 

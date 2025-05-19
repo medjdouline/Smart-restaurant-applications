@@ -189,39 +189,64 @@ class _RegimeScreenState extends State<RegimeScreen> {
                     ),
                   ),
                   
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF245536), 
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        elevation: 0,
-                      ),
-                      onPressed: state.status == RegimeStatus.loading
-                          ? null
-                          : () {
-                              context.read<RegimeBloc>().add(const RegimeSubmitted());
-                            },
-                      child: state.status == RegimeStatus.loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Suivant',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  // Main "Suivant" button
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF245536),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      elevation: 0,
+    ),
+    onPressed: state.status == RegimeStatus.loading
+        ? null
+        : () {
+            if (state.selectedRegimes.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Veuillez sélectionner au moins un régime ou cliquer sur "Passer"'),
+                ),
+              );
+            } else {
+              context.read<RegimeBloc>().add(const RegimeSubmitted());
+            }
+          },
+    child: state.status == RegimeStatus.loading
+        ? const SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+            ),
+          )
+        : const Text(
+            'Suivant',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+  ),
+),
+const SizedBox(height: 10), // Reduced spacing between buttons
+// "Passer" button
+TextButton(
+  onPressed: state.status == RegimeStatus.loading
+      ? null
+      : () {
+          context.read<RegimeBloc>().add(const RegimeSubmitted());
+        },
+  child: const Text(
+    'Passer',
+    style: TextStyle(
+      color: Color(0xFF245536),
+      fontSize: 16,
+    ),
+  ),
+),
+const SizedBox(height: 20), // Final bottom spacing
                 ],
               ),
             ),

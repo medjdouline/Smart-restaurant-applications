@@ -31,7 +31,6 @@ import 'package:good_taste/presentation/screens/favorites/favorites_screen.dart'
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:good_taste/data/services/firebase_auth_service.dart';
 import 'package:good_taste/di/di.dart'; // Import the dependency injection
 import 'package:logging/logging.dart';
 

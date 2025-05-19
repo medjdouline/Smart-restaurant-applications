@@ -9,11 +9,13 @@ class RegisterState extends Equatable {
     this.phoneNumber = const PhoneNumber.pure(), 
     this.status = FormzSubmissionStatus.initial,
     this.isValid = false,
+    this.errorMessage,
     this.isSubmitted = false, 
   });
 
   final Username username;
   final Email email;
+  final String? errorMessage;
   final Password password;
   final ConfirmedPassword confirmedPassword;
   final PhoneNumber phoneNumber;
@@ -24,6 +26,7 @@ class RegisterState extends Equatable {
   RegisterState copyWith({
     Username? username,
     Email? email,
+    String? errorMessage,
     Password? password,
     ConfirmedPassword? confirmedPassword,
     PhoneNumber? phoneNumber, 
@@ -38,6 +41,7 @@ class RegisterState extends Equatable {
       confirmedPassword: confirmedPassword ?? this.confirmedPassword,
       phoneNumber: phoneNumber ?? this.phoneNumber, 
       status: status ?? this.status,
+      errorMessage: errorMessage ?? this.errorMessage,
       isValid: isValid ?? this.isValid,
       isSubmitted: isSubmitted ?? this.isSubmitted,
     );
@@ -50,6 +54,7 @@ class RegisterState extends Equatable {
     password, 
     confirmedPassword,
     phoneNumber, 
+    errorMessage ?? '',
     status, 
     isValid, 
     isSubmitted

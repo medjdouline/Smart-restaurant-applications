@@ -6,7 +6,6 @@ import 'package:good_taste/logic/blocs/allergies/allergies_state.dart';
 import 'package:good_taste/logic/blocs/regime/regime_bloc.dart';
 import 'package:good_taste/logic/blocs/regime/regime_event.dart';
 import 'package:good_taste/logic/blocs/regime/regime_state.dart';
-import 'package:good_taste/di/di.dart';
 
 class PreferenceDetailScreen extends StatefulWidget {
   const PreferenceDetailScreen({super.key});
@@ -57,137 +56,139 @@ class _PreferenceDetailScreenState extends State<PreferenceDetailScreen> {
   @override
   void initState() {
     super.initState();
+  
     context.read<AllergiesBloc>().add(const AllergiesLoaded());
     context.read<RegimeBloc>().add(const RegimesLoaded());
   }
 
-  @override
-  Widget build(BuildContext context) {
-return MultiBlocProvider(
-providers: [
-  BlocProvider(
-    create: (context) => AllergiesBloc(
-      allergiesRepository: DependencyInjection.getAllergiesRepository(),
-      authRepository: DependencyInjection.getAuthRepository(),
+ 
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFE9B975),
+    appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Color(0xFFBA3400)),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      title: const Text('Mes préférences', style: TextStyle(color: Color(0xFFBA3400))),
     ),
-  ),
-  BlocProvider(
-    create: (context) => RegimeBloc(
-      regimeRepository: DependencyInjection.getRegimeRepository(),
-      authRepository: DependencyInjection.getAuthRepository(),
-    ),
-  ),
-  ],
-      child: Scaffold(
-        backgroundColor: const Color(0xFFE9B975),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFFBA3400)),
-            onPressed: () => Navigator.of(context).pop(),
+    body: SafeArea(
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<AllergiesBloc, AllergiesState>(
+            listenWhen: (previous, current) => 
+              previous.status != current.status && current.status == AllergiesStatus.success,
+            listener: (context, state) {
+            
+              if (state.status == AllergiesStatus.success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Préférences enregistrées avec succès !'),
+                    backgroundColor: Color(0xFF245536),
+                  ),
+                );
+              }
+            },
           ),
-          title: const Text('Mes préférences', style: TextStyle(color: Color(0xFFBA3400))),
-        ),
-        body: SafeArea(
-          child: MultiBlocListener(
-            listeners: [
-              BlocListener<AllergiesBloc, AllergiesState>(
-                listenWhen: (previous, current) => 
-                  previous.status != current.status && current.status == AllergiesStatus.success,
-                listener: (context, state) {
-                  if (state.status == AllergiesStatus.success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Préférences enregistrées avec succès !'),
-                        backgroundColor: Color(0xFF245536),
-                      ),
-                    );
-                  }
-                },
-              ),
-              BlocListener<RegimeBloc, RegimeState>(
-                listenWhen: (previous, current) => 
-                  previous.status != current.status && current.status == RegimeStatus.failure,
-                listener: (context, state) {
-                  if (state.status == RegimeStatus.failure) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.errorMessage ?? 'Une erreur est survenue'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
-              ),
-            ],
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 10),
-                    _buildSectionTitle('Mes allergies'),
-                    const SizedBox(height: 10),
-                    _buildAllergiesSection(),
-                    const SizedBox(height: 30),
-                    _buildSectionTitle('Mes régimes alimentaire'),
-                    const SizedBox(height: 10),
-                    _buildRegimesSection(),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      child: BlocBuilder<AllergiesBloc, AllergiesState>(
+          BlocListener<RegimeBloc, RegimeState>(
+            listenWhen: (previous, current) => 
+              previous.status != current.status && current.status == RegimeStatus.failure,
+            listener: (context, state) {
+              
+              if (state.status == RegimeStatus.failure) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.errorMessage ?? 'Une erreur est survenue'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 10),
+           
+                _buildSectionTitle('Mes allergies'),
+                const SizedBox(height: 10),
+                _buildAllergiesSection(),
+                const SizedBox(height: 30),
+
+                _buildSectionTitle('Mes régimes alimentaire'),
+                const SizedBox(height: 10),
+                _buildRegimesSection(),
+                const SizedBox(height: 30),
+        
+              
+                SizedBox(
+                  width: double.infinity,
+                  child: BlocBuilder<AllergiesBloc, AllergiesState>(
+                    buildWhen: (previous, current) => previous.status != current.status,
+                    builder: (context, allergiesState) {
+                      return BlocBuilder<RegimeBloc, RegimeState>(
                         buildWhen: (previous, current) => previous.status != current.status,
-                        builder: (context, allergiesState) {
-                          return BlocBuilder<RegimeBloc, RegimeState>(
-                            buildWhen: (previous, current) => previous.status != current.status,
-                            builder: (context, regimeState) {
-                              final isLoading = allergiesState.status == AllergiesStatus.loading || 
-                                               regimeState.status == RegimeStatus.loading;
+                        builder: (context, regimeState) {
+                          final isLoading = allergiesState.status == AllergiesStatus.loading || 
+                                           regimeState.status == RegimeStatus.loading;
+                          
+                          return ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF245536),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                            onPressed: isLoading 
+                              ? null 
+                              : () {
+                                 
+                                  context.read<AllergiesBloc>().add(const AllergiesSubmitted());
+                                  context.read<RegimeBloc>().add(const RegimeSubmitted());
+                                  
+                                
+                                  final currentContext = context;
+                                  
                               
-                              return ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF245536),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(vertical: 15),
-                                ),
-                                onPressed: isLoading 
-                                  ? null 
-                                  : () {
-                                      context.read<AllergiesBloc>().add(const AllergiesSubmitted());
-                                      context.read<RegimeBloc>().add(const RegimeSubmitted());
-                                      Future.delayed(const Duration(seconds: 1), () {
-                                        if (mounted) {
-                                          Navigator.of(context).pop();
-                                        }
-                                      });
-                                    },
-                                child: isLoading 
-                                  ? const SizedBox(
-                                      height: 20, 
-                                      width: 20, 
-                                      child: CircularProgressIndicator(color: Colors.white))
-                                  : const Text('Enregistrer', style: TextStyle(fontSize: 16)),
-                              );
-                            },
+                                  Future.delayed(const Duration(seconds: 1), () {
+                                  
+                                    if (mounted) {
+                                     
+                                      Navigator.of(currentContext).pop();
+                                    }
+                                  });
+                                },
+                            child: isLoading 
+                              ? const SizedBox(
+                                  height: 20, 
+                                  width: 20, 
+                                  child: CircularProgressIndicator(color: Colors.white)
+                                )
+                              : const Text('Enregistrer', style: TextStyle(fontSize: 16)),
                           );
                         },
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSectionTitle(String title) {
     return Text(

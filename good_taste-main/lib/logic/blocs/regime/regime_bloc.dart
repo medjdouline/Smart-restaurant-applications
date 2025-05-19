@@ -51,35 +51,37 @@ class RegimeBloc extends Bloc<RegimeEvent, RegimeState> {
     }
   }
 
-  Future<void> _onRegimeSubmitted(
-    RegimeSubmitted event,
-    Emitter<RegimeState> emit,
-  ) async {
-    emit(state.copyWith(status: RegimeStatus.loading));
+// In regime_bloc.dart - modify the _onRegimeSubmitted method
+Future<void> _onRegimeSubmitted(
+  RegimeSubmitted event,
+  Emitter<RegimeState> emit,
+) async {
+  emit(state.copyWith(status: RegimeStatus.loading));
 
-    try {
-     
-      final user = _authRepository.getCurrentUser();
-      final String userId = user.id;
-      
-     
-      await _regimeRepository.saveRegimes(state.selectedRegimes, userId: userId);
-      
-     
-      final updatedRegimeModel = RegimeModel(regimes: state.selectedRegimes);
-      await _authRepository.updateUserProfile(regimes: updatedRegimeModel);
-      
-      emit(state.copyWith(
-        status: RegimeStatus.success,
-        savedRegimes: List.from(state.selectedRegimes), 
-      ));
-    } catch (e) {
-      emit(state.copyWith(
-        status: RegimeStatus.failure,
-        errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
-      ));
-    }
+  try {
+    final user = _authRepository.getCurrentUser();
+    final String userId = user.id;
+    
+    // Save to API
+    await _authRepository.completeRegimesInfo(
+      uid: userId,
+      restrictions: state.selectedRegimes,
+    );
+    
+    // Save to local storage
+    await _regimeRepository.saveRegimes(state.selectedRegimes, userId: userId);
+    
+    emit(state.copyWith(
+      status: RegimeStatus.success,
+      savedRegimes: List.from(state.selectedRegimes),
+    ));
+  } catch (e) {
+    emit(state.copyWith(
+      status: RegimeStatus.failure,
+      errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
+    ));
   }
+}
   
   Future<void> _onRegimesLoaded(
     RegimesLoaded event,

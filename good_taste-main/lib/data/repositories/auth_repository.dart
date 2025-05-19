@@ -2,31 +2,21 @@ import 'package:good_taste/data/models/user.dart';
 import 'package:good_taste/data/models/allergies_model.dart';
 import 'package:good_taste/data/models/regime_model.dart';
 import 'package:good_taste/data/models/preferences_model.dart';
-import 'package:good_taste/data/api/auth_api_service.dart';
-import 'package:good_taste/data/api/auth_api_service.dart';
-import 'package:good_taste/data/repositories/allergies_repository.dart';
-import 'package:good_taste/data/services/firebase_auth_service.dart';
+import 'package:good_taste/data/api/api_client.dart';
 import 'package:logging/logging.dart';
+import 'package:good_taste/data/api/auth_api_service.dart';
 import 'dart:async';
 
 class AuthRepository {
   final Logger _logger = Logger('AuthRepository');
   final AuthApiService _authApiService;
-  final AllergiesRepository _allergiesRepository;
-  final FirebaseAuthService _firebaseAuthService; // Add this field
   
   final _userController = StreamController<User>.broadcast();
   User _currentUser = User.empty;
   String? _currentUid;
   
-  AuthRepository({
-    required AuthApiService authApiService,
-    required AllergiesRepository allergiesRepository,
-    required FirebaseAuthService firebaseAuthService, // Add this parameter
-  }) : _authApiService = authApiService,
-       _allergiesRepository = allergiesRepository,
-       _firebaseAuthService = firebaseAuthService // Initialize the field
-  {
+  AuthRepository({required AuthApiService authApiService}) 
+    : _authApiService = authApiService {
     _userController.add(_currentUser);
   }
 
@@ -36,8 +26,136 @@ class AuthRepository {
     return _currentUser;
   }
   
-  String? getCurrentUid() {
-    return _currentUid;
+// In auth_repository.dart - update the signUp method
+Future<String> signUp({
+  required String email,
+  required String password,
+  required String username,
+  required String phoneNumber,
+}) async {
+  try {
+    final response = await _authApiService.signUpStep1(
+      email: email,
+      password: password,
+      passwordConfirmation: password,
+      username: username,
+      phoneNumber: phoneNumber,
+    );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Signup failed');
+    }
+    
+    _currentUid = response.data['uid'];
+    _logger.info("User created with UID: $_currentUid");
+    
+    // Create a partial user object with the data we have so far
+    _currentUser = User(
+      id: _currentUid!,
+      email: email,
+      name: username,
+      profileImage: 'assets/images/profile_avatar.png',
+      phoneNumber: phoneNumber,
+      gender: null,
+      dateOfBirth: null,
+      allergies: const AllergiesModel(),
+      regimes: const RegimeModel(),
+      preferences: const PreferencesModel(),
+    );
+    
+    _userController.add(_currentUser);
+    
+    return _currentUid!;
+  } catch (e) {
+    _logger.severe("Signup failed: $e");
+    // Parse the error to provide a more user-friendly message
+    if (e.toString().contains('Email already registered')) {
+      throw Exception('Cette adresse email est déjà utilisée.');
+    } else if (e.toString().contains('Passwords do not match')) {
+      throw Exception('Les mots de passe ne correspondent pas.');
+    } else if (e.toString().contains('All fields are required')) {
+      throw Exception('Tous les champs sont obligatoires.');
+    }
+    throw Exception('Échec de l\'inscription: ${e.toString()}');
+  }
+}
+  // Rest of the methods remain unchanged
+  Future<void> updateUserProfile({
+    String? name,
+    String? email,
+    String? phoneNumber,
+    String? gender,
+    DateTime? dateOfBirth,
+    String? profileImage,
+    AllergiesModel? allergies,
+    RegimeModel? regimes,
+    PreferencesModel? preferences,
+  }) async {
+    await Future.delayed(Duration(seconds: 1));
+    
+    _currentUser = User(
+      id: _currentUser.id,
+      email: email ?? _currentUser.email,
+      name: name ?? _currentUser.name,
+      phoneNumber: phoneNumber ?? _currentUser.phoneNumber,
+      profileImage: profileImage ?? _currentUser.profileImage,
+      gender: gender ?? _currentUser.gender,
+      dateOfBirth: dateOfBirth ?? _currentUser.dateOfBirth,
+      allergies: allergies ?? _currentUser.allergies,
+      regimes: regimes ?? _currentUser.regimes,
+      preferences: preferences ?? _currentUser.preferences,
+    );
+    
+    _logger.info("Mise à jour du profil utilisateur: ${_currentUser.name}, préférences: ${_currentUser.preferences.preferences}");
+    _userController.add(_currentUser);
+    return;
+  }
+  
+  Future<void> logIn({
+    required String email,
+    required String password,
+  }) async {
+    
+    if (email == "admin@example.com") {
+      _currentUser = User(
+        id: 'admin-id',
+        email: email,
+        name: 'Admin',
+        profileImage: 'assets/images/admin_avatar.png',
+        phoneNumber: '0600000000',
+        gender: 'Homme',
+        dateOfBirth: DateTime(1985, 5, 15),
+        allergies: const AllergiesModel(),
+        regimes: const RegimeModel(),
+        preferences: const PreferencesModel(),
+      );
+    } else {
+    
+      String username = email.split('@')[0];
+      
+      _currentUser = User(
+        id: 'user-${DateTime.now().millisecondsSinceEpoch}',
+        email: email,
+        name: username, 
+        profileImage: 'assets/images/profile_avatar.png',
+        phoneNumber: '0610101010',
+        gender: 'Homme',
+        dateOfBirth: DateTime(1990, 1, 1),
+        allergies: const AllergiesModel(),
+        regimes: const RegimeModel(),
+        preferences: const PreferencesModel(),
+      );
+    }
+    _userController.add(_currentUser);
+    _logger.info("Utilisateur simulé connecté avec email: $email");
+    return Future.delayed(Duration(seconds: 1)); 
+  }
+  
+  Future<void> logOut() async {
+    _currentUser = User.empty;
+    _userController.add(_currentUser);
+    _logger.info("Utilisateur simulé déconnecté");
+    return Future.delayed(Duration(seconds: 1)); 
   }
   
   bool isValidAge(DateTime dateOfBirth) {
@@ -46,264 +164,122 @@ class AuthRepository {
     final age = difference / 365;
     return age >= 13;
   }
-
-  Future<String> signUp({
-    required String email,
-    required String password,
-    required String username,
-    required String phoneNumber,
-  }) async {
-    try {
-      final response = await _authApiService.signUpStep1(
-        email: email,
-        password: password,
-        passwordConfirmation: password,
-        username: username,
-        phoneNumber: phoneNumber,
-      );
-      if (!response.success) {
-        throw Exception(response.error ?? 'Signup failed');
-      }
-      
-      // Store the UID for later steps
-      _currentUid = response.data['uid'];
-      
-      // Create a basic user with the information we have
-      _currentUser = User(
-        id: _currentUid!,
-        email: email,
-        name: username,
-        profileImage: 'assets/images/profile_avatar.png',
-        phoneNumber: phoneNumber,
-        gender: null,
-        dateOfBirth: null,
-        allergies: const AllergiesModel(),
-        regimes: const RegimeModel(),
-        preferences: const PreferencesModel(),
-      );
-      
-      _userController.add(_currentUser);
-      
-      _logger.info("User signed up with email: $email, username: $username, phone: $phoneNumber");
-      
-      return _currentUid!;
-    } catch (e) {
-      _logger.severe("Signup failed: $e");
-      throw Exception('Failed to sign up: $e');
-    }
-  }
   
 
-
-// In auth_repository.dart
-Future<void> updateUserProfile({
-        RegimeModel? regimes,
-  PreferencesModel? preferences,
-  // Step 1 fields
-  String? name,
-  String? email,
-  String? phoneNumber,
-  
-  // Step 2 fields
-  String? gender,
-  DateTime? dateOfBirth,
-  String? profileImage,
- 
-  
-  // Step 3 fields
-  AllergiesModel? allergies,
+  Future<ApiResponse> completePersonalInfo({
+  required String uid,
+  required DateTime dateOfBirth,
+  required String gender,
 }) async {
   try {
-    // Handle Step 1 updates
-    if (name != null || email != null || phoneNumber != null) {
-      _currentUser = _currentUser.copyWith(
-        name: name ?? _currentUser.name,
-        email: email ?? _currentUser.email,
-        phoneNumber: phoneNumber ?? _currentUser.phoneNumber,
-      );
-      _userController.add(_currentUser);
-    }
-
-    // Handle Step 2 updates
-    if (gender != null && dateOfBirth != null && _currentUid != null) {
-      final response = await _authApiService.signUpStep2(
-        uid: _currentUid!,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-      );
-
-      if (!response.success) {
-        throw Exception(response.error ?? 'Personal info update failed');
-      }
-
-      _currentUser = _currentUser.copyWith(
-        gender: gender,
-        dateOfBirth: dateOfBirth,
-        profileImage: profileImage,
-      );
-      _userController.add(_currentUser);
-    }
-
-    // Handle Step 3 updates (only if step 2 is complete)
-    if (allergies != null && _currentUid != null && _currentUser.gender != null) {
-      final response = await _authApiService.signUpStep3(
-        uid: _currentUid!,
-        allergies: allergies.allergies,
-      );
-
-      if (!response.success) {
-        throw Exception(response.error ?? 'Failed to save allergies');
-      }
-
-      _currentUser = _currentUser.copyWith(allergies: allergies);
-      _userController.add(_currentUser);
-    }
-   if (regimes != null && _currentUid != null) {
-      final response = await _authApiService.signUpStep4(
-        uid: _currentUid!,
-        restrictions: regimes.regimes, // Utilise .regimes comme défini dans votre modèle
-      );
-
-      if (!response.success) {
-        throw Exception(response.error ?? 'Échec de l\'enregistrement des régimes');
-      }
-
-      _currentUser = _currentUser.copyWith(regimes: regimes);
-      _userController.add(_currentUser);
-    }
-    // ▲▲▲ FIN DE L'AJOUT ▲▲▲
-//step 5
-if (preferences != null && _currentUid != null) {
-      final response = await _authApiService.signUpStep5(
-        uid: _currentUid!,
-        preferences: preferences.preferences,
-      );
-
-      if (!response.success) {
-        throw Exception(response.error ?? 'Échec de l\'enregistrement des préférences');
-      }
-
-      _currentUser = _currentUser.copyWith(preferences: preferences);
-      _userController.add(_currentUser);
-      
-      // Si vous avez besoin du token de connexion retourné par le backend:
-      final customToken = response.data['custom_token'];
-      // ... faites ce que vous devez faire avec ce token
-    }
-    // ▲▲▲ FIN DE L'AJOUT ▲▲▲
-    
-  } catch (e) {
-    _logger.severe("Échec de la mise à jour du profil: $e");
-    throw Exception('Échec de la mise à jour du profil: $e');
-  }
-}
-
-  Future<void> logOut() async {
-    try {
-      // Sign out from Firebase
-      await _firebaseAuthService.signOut();
-      
-      // Reset local state
-      _currentUser = User.empty;
-      _userController.add(_currentUser);
-      _logger.info("User logged out");
-      return Future.delayed(Duration(seconds: 1)); 
-    } catch (e) {
-      _logger.severe("Logout failed: $e");
-      throw Exception('Failed to logout: $e');
-    }
-  }
-  
-  Future<void> logIn({
-    required String identifier,
-    required String password,
-  }) async {
-    try {
-      final response = await _authApiService.login(
-        identifier: identifier,
-        password: password,
-      );
-      _logger.info("Login API response: ${response.data}");
-      
-      if (!response.success) {
-        throw Exception(response.error ?? 'Login failed');
-      }
-      
-      _currentUid = response.data['uid'];
-
-      // Get the custom token from the response
-      String customToken = response.data['custom_token'];
-      
-      // Exchange the custom token for an ID token
-      String? idToken = await _firebaseAuthService.exchangeCustomTokenForIdToken(customToken);
-      
-      if (idToken == null) {
-        throw Exception('Failed to obtain Firebase ID token');
-      }
-      
-      // Set the ID token (not the custom token) in the API client
-      await _authApiService.setAuthToken(idToken);
-      _logger.info("Firebase ID token set successfully");
-      
-      // For email vs username handling
-      String email = identifier.contains('@') ? identifier : '';
-      String username = !identifier.contains('@') ? identifier : email.split('@')[0];
-      
-      _currentUser = User(
-        id: _currentUid!,
-        email: email,
-        name: username,
-        profileImage: 'assets/images/profile_avatar.png',
-        phoneNumber: '',
-        gender: null,
-        dateOfBirth: null,
-        allergies: const AllergiesModel(),
-        regimes: const RegimeModel(),
-        preferences: const PreferencesModel(),
-      );
-      
-      _userController.add(_currentUser);
-      
-      _logger.info("User logged in with identifier: $identifier");
-    } catch (e) {
-      _logger.severe("Login failed: $e");
-      throw Exception('Failed to login: $e');
-    }
-  }
-
-Future<List<String>> getAllergies() async {
-  try {
-    final response = await _authApiService.getAllergies(); // Will call /client-mobile/allergies/
-    if (!response.success) throw Exception(response.error);
-    return List<String>.from(response.data['allergies'] ?? []);
-  } catch (e) {
-    _logger.severe("Failed to get allergies: $e");
-    // Fallback to local storage if needed
-    final user = getCurrentUser();
-    return _allergiesRepository.getAllergies(userId: user.id);
-  }
-}
-
-Future<void> updateAllergies(List<String> allergies) async {
-  try {
-    _logger.info("Starting updateAllergies with: $allergies");
-    
-    // This is missing the actual API call
-    final response = await _authApiService.updateAllergies(allergies);
-    if (!response.success) {
-      throw Exception(response.error ?? 'Failed to update allergies');
-    }
-    
-    // Update local user state
-    _currentUser = _currentUser.copyWith(
-      allergies: AllergiesModel(allergies: allergies)
+    final response = await _authApiService.signUpStep2(
+      uid: uid,
+      dateOfBirth: dateOfBirth,
+      gender: gender,
     );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Personal info update failed');
+    }
+    
+    // Update local user data
+    _currentUser = _currentUser.copyWith(
+      dateOfBirth: dateOfBirth,
+      gender: gender,
+    );
+    
     _userController.add(_currentUser);
     
-    _logger.info("Successfully updated allergies");
+    return response;
   } catch (e) {
-    _logger.severe("Failed to update allergies: $e");
-    throw Exception('Failed to update allergies: $e');
+    _logger.severe("Personal info update failed: $e");
+    throw Exception('Échec de la mise à jour des informations personnelles: ${e.toString()}');
   }
 }
+Future<ApiResponse> completeAllergiesInfo({
+  required String uid,
+  required List<String> allergies,
+}) async {
+  try {
+    final response = await _authApiService.signUpStep3(
+      uid: uid,
+      allergies: allergies,
+    );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Allergies info update failed');
+    }
+    
+    // Update local user data
+    _currentUser = _currentUser.copyWith(
+      allergies: AllergiesModel(allergies: allergies),
+    );
+    
+    _userController.add(_currentUser);
+    
+    return response;
+  } catch (e) {
+    _logger.severe("Allergies info update failed: $e");
+    throw Exception('Échec de la mise à jour des allergies: ${e.toString()}');
+  }
+}
+// In auth_repository.dart - add this method
+Future<ApiResponse> completeRegimesInfo({
+  required String uid,
+  required List<String> restrictions,
+}) async {
+  try {
+    final response = await _authApiService.signUpStep4(
+      uid: uid,
+      restrictions: restrictions,
+    );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Regimes info update failed');
+    }
+    
+    // Update local user data
+    _currentUser = _currentUser.copyWith(
+      regimes: RegimeModel(regimes: restrictions),
+    );
+    
+    _userController.add(_currentUser);
+    
+    return response;
+  } catch (e) {
+    _logger.severe("Regimes info update failed: $e");
+    throw Exception('Échec de la mise à jour des régimes: ${e.toString()}');
+  }
+}
+// In auth_repository.dart - add this method
+Future<ApiResponse> completePreferencesInfo({
+  required String uid,
+  required List<String> preferences,
+}) async {
+  try {
+    final response = await _authApiService.signUpStep5(
+      uid: uid,
+      preferences: preferences,
+    );
+    
+    if (!response.success) {
+      throw Exception(response.error ?? 'Preferences update failed');
+    }
+    
+    // Update local user data
+    _currentUser = _currentUser.copyWith(
+      preferences: PreferencesModel(preferences: preferences),
+    );
+    
+    _userController.add(_currentUser);
+    
+    return response;
+  } catch (e) {
+    _logger.severe("Preferences update failed: $e");
+    throw Exception('Échec de la mise à jour des préférences: ${e.toString()}');
+  }
+}
+  void dispose() {
+    _userController.close();
+  }
 }

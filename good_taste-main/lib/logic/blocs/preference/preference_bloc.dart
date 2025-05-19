@@ -1,12 +1,12 @@
-// lib/logic/blocs/preference/preference_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:good_taste/logic/blocs/preference/preference_event.dart';
 import 'package:good_taste/logic/blocs/preference/preference_state.dart';
 import 'package:good_taste/data/repositories/preferences_repository.dart';
 import 'package:good_taste/data/repositories/auth_repository.dart';
 import 'package:good_taste/data/models/preferences_model.dart';
+import 'package:good_taste/data/api/auth_api_service.dart';
+import 'package:good_taste/data/api/api_client.dart';
 import 'package:logging/logging.dart';
-import 'package:good_taste/di/di.dart'; // Import dependency injection
 
 class PreferenceBloc extends Bloc<PreferenceEvent, PreferenceState> {
   final PreferencesRepository _preferencesRepository;
@@ -16,8 +16,13 @@ class PreferenceBloc extends Bloc<PreferenceEvent, PreferenceState> {
   PreferenceBloc({
     PreferencesRepository? preferencesRepository,
     AuthRepository? authRepository,
+    AuthApiService? authApiService,
   }) : _preferencesRepository = preferencesRepository ?? PreferencesRepository(),
-       _authRepository = authRepository ?? DependencyInjection.getAuthRepository(), // Use DI
+       _authRepository = authRepository ?? AuthRepository(
+         authApiService: authApiService ?? AuthApiService(
+           apiClient: ApiClient(baseUrl: 'https://api.your-domain.com/'), // Replace with your actual base URL
+         ),
+       ),
        super(const PreferenceState()) {
     on<PreferenceToggled>(_onPreferenceToggled);
     on<PreferenceSubmitted>(_onPreferenceSubmitted);
@@ -43,6 +48,7 @@ class PreferenceBloc extends Bloc<PreferenceEvent, PreferenceState> {
     ));
   }
 
+// In preference_bloc.dart - modify the _onPreferenceSubmitted method
 Future<void> _onPreferenceSubmitted(
   PreferenceSubmitted event,
   Emitter<PreferenceState> emit,
@@ -51,30 +57,18 @@ Future<void> _onPreferenceSubmitted(
 
   try {
     final user = _authRepository.getCurrentUser();
+    final String userId = user.id;
     
-    // Validation minimum 1 préférence
-    if (state.selectedPreferences.isEmpty) {
-      throw Exception('Sélectionnez au moins une préférence');
-    }
-
-    // Validation des préférences autorisées
-    const allowedPrefs = [
-      'Soupes et Potages', 'Salades et Crudités', 'Poissons et Fruit de mer',
-      'Cuisine traditionnelle', 'Viandes', 'Sandwichs et burgers', 'Végétarien',
-      'Crémes et Mousses', 'Pâtisseries', 'Fruits et Sorbets'
-    ];
+    // Save to API
+    await _authRepository.completePreferencesInfo(
+      uid: userId,
+      preferences: state.selectedPreferences,
+    );
     
-    final invalidPrefs = state.selectedPreferences
-        .where((pref) => !allowedPrefs.contains(pref))
-        .toList();
-    
-    if (invalidPrefs.isNotEmpty) {
-      throw Exception('Préférences non valides: ${invalidPrefs.join(', ')}');
-    }
-
-    // Enregistrement final
-    await _authRepository.updateUserProfile(
-      preferences: PreferencesModel(preferences: state.selectedPreferences),
+    // Save to local storage
+    await _preferencesRepository.savePreferences(
+      state.selectedPreferences, 
+      userId: userId
     );
     
     emit(state.copyWith(
@@ -82,13 +76,14 @@ Future<void> _onPreferenceSubmitted(
       savedPreferences: List.from(state.selectedPreferences),
     ));
   } catch (e) {
+    _logger.severe('Erreur lors de la sauvegarde des préférences: $e');
     emit(state.copyWith(
       status: PreferenceStatus.failure,
-      errorMessage: e.toString(),
+      errorMessage: 'Une erreur est survenue. Veuillez réessayer.',
     ));
   }
 }
-
+  
   Future<void> _onPreferencesLoaded(
     PreferencesLoaded event,
     Emitter<PreferenceState> emit,

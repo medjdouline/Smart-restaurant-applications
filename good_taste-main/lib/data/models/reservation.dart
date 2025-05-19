@@ -5,7 +5,8 @@ enum ReservationStatus {
   confirmed,
   pending,
   canceled,
-  completed
+  completed,
+  late
 }
 
 class Reservation extends Equatable {
@@ -41,6 +42,8 @@ class Reservation extends Equatable {
         return 'Annulée';
       case ReservationStatus.completed:
         return 'Terminée';
+      case ReservationStatus.late:
+        return 'En retard';
     }
   }
 
@@ -55,6 +58,8 @@ class Reservation extends Equatable {
         return '#B85C38'; // Rouge
       case ReservationStatus.completed:
         return '#888888'; // Gris
+      case ReservationStatus.late:
+      return '#FFA500'; // Orange vif 
     }
   }
 }

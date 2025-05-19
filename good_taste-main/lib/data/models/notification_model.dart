@@ -3,7 +3,9 @@ import 'package:equatable/equatable.dart';
 
 enum NotificationType {
   reservation,
-  fidelity
+  fidelity,
+  late,      
+  canceled    
 }
 
 class Notification extends Equatable {
@@ -12,6 +14,7 @@ class Notification extends Equatable {
   final DateTime date;
   final NotificationType type;
   final bool isRead;
+  final String? reservationId;  
 
   const Notification({
     required this.id,
@@ -19,10 +22,11 @@ class Notification extends Equatable {
     required this.date,
     required this.type,
     this.isRead = false,
+    this.reservationId, 
   });
 
   @override
-  List<Object?> get props => [id, message, date, type, isRead];
+  List<Object?> get props => [id, message, date, type, isRead, reservationId];
 
   Notification copyWith({
     String? id,
@@ -30,6 +34,7 @@ class Notification extends Equatable {
     DateTime? date,
     NotificationType? type,
     bool? isRead,
+    String? reservationId,
   }) {
     return Notification(
       id: id ?? this.id,
@@ -37,6 +42,7 @@ class Notification extends Equatable {
       date: date ?? this.date,
       type: type ?? this.type,
       isRead: isRead ?? this.isRead,
+      reservationId: reservationId ?? this.reservationId,
     );
   }
 }

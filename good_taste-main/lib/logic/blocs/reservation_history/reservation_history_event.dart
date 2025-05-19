@@ -27,3 +27,10 @@ class CancelReservation extends ReservationHistoryEvent {
   @override
   List<Object> get props => [reservationId];
 }
+
+class CheckLateReservations extends ReservationHistoryEvent {
+  const CheckLateReservations();
+
+  @override
+  List<Object> get props => [];
+}

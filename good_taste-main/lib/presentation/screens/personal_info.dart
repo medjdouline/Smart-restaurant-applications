@@ -35,8 +35,10 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => PersonalInfoBloc(),
-      child: BlocConsumer<PersonalInfoBloc, PersonalInfoState>(
+  create: (context) => PersonalInfoBloc(
+    authRepository: context.read<AuthRepository>(),
+  ),
+  child: BlocConsumer<PersonalInfoBloc, PersonalInfoState>(
         listener: (context, state) {
           if (state.status == PersonalInfoStatus.failure || 
               state.status == PersonalInfoStatus.invalid && state.errorMessage != null) {
