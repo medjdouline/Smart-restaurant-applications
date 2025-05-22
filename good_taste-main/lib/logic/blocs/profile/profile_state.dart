@@ -12,6 +12,8 @@ class ProfileState extends Equatable {
     this.status = FormzSubmissionStatus.initial,
     this.isValid = false,
     this.errorMessage,
+    this.allergies = const [],
+    
   });
 
   final Username username;
@@ -24,6 +26,7 @@ class ProfileState extends Equatable {
   final FormzSubmissionStatus status;
   final bool isValid;
   final String? errorMessage;
+  final List<String> allergies; 
 
   ProfileState copyWith({
     Username? username,
@@ -36,6 +39,10 @@ class ProfileState extends Equatable {
     FormzSubmissionStatus? status,
     bool? isValid,
     String? errorMessage,
+   List<String>? allergies,
+
+
+
   }) {
     return ProfileState(
       username: username ?? this.username,
@@ -48,6 +55,8 @@ class ProfileState extends Equatable {
       status: status ?? this.status,
       isValid: isValid ?? this.isValid,
       errorMessage: errorMessage,
+      allergies: allergies ?? this.allergies,
+      
     );
   }
 
@@ -66,5 +75,7 @@ class ProfileState extends Equatable {
     status, 
     isValid,
     errorMessage,
+    allergies,
+    
   ];
 }

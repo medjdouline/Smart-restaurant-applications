@@ -21,7 +21,7 @@ urlpatterns = [
  
     path('orders/<str:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/<str:order_id>/request-cancel/', views.request_cancel_order, name='request_cancel_order'),
-    
+    path('orders/<str:order_id>/', views.get_order_details, name='get_order_details'),
     
     # Assistance requests
     path('assistance/', views.get_assistance_requests, name='get_assistance_requests'),
@@ -34,6 +34,8 @@ urlpatterns = [
     path('tables/', views.get_all_tables, name='get_all_tables'),
     path('tables/<str:table_id>/status/', views.update_table_status, name='update_table_status'),
     path('tables/<str:table_id>/orders/', views.get_table_orders, name='get_table_orders'),
+    path('tables/<str:table_id>/confirm-reservation/', views.confirm_reservation, name='confirm_reservation'),
+
     
     # Notifications
     path('notifications/', views.get_notifications, name='get_notifications'),

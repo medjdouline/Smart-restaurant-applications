@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:good_taste/data/repositories/order_history_repository.dart';
+import 'package:good_taste/data/api/order_api_service.dart';
+import 'package:good_taste/data/api/api_client.dart';
 import 'package:good_taste/logic/blocs/auth/auth_bloc.dart';
 import 'package:good_taste/logic/blocs/order_history/order_history_bloc.dart';
 import 'package:good_taste/data/models/order.dart';
@@ -14,10 +16,24 @@ class OrderHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => OrderHistoryBloc(
-        repository: OrderHistoryRepository(),
-        authBloc: context.read<AuthBloc>(),
-      )..add(LoadOrderHistory()),
+      create: (context) {
+        final authBloc = context.read<AuthBloc>();
+        final authState = authBloc.state;
+        final apiClient = ApiClient(
+          baseUrl: 'http://127.0.0.1:8000/api/', // Replace with your actual base URL
+        );
+        if (authState.user?.idToken != null) {
+          apiClient.setAuthToken(authState.user!.idToken!);
+        }
+        return OrderHistoryBloc(
+          repository: OrderHistoryRepository(
+            orderApiService: OrderApiService(
+              apiClient: apiClient,
+            ),
+          ),
+          authBloc: authBloc,
+        )..add(LoadOrderHistory());
+      },
       child: const OrderHistoryView(),
     );
   }
@@ -29,15 +45,23 @@ class OrderHistoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:const Color(0xFFE9B975), 
+      backgroundColor: const Color(0xFFE9B975), 
       appBar: AppBar(
-        title: Text('Historique des commandes', style: TextStyle(color:  const Color(0xFFBA3400))),
+        title: Text('Historique des commandes', style: TextStyle(color: const Color(0xFFBA3400))),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color:  const Color(0xFFBA3400)),
+          icon: Icon(Icons.arrow_back, color: const Color(0xFFBA3400)),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh, color: const Color(0xFFBA3400)),
+            onPressed: () {
+              context.read<OrderHistoryBloc>().add(LoadOrderHistory());
+            },
+          ),
+        ],
       ),
       body: BlocBuilder<OrderHistoryBloc, OrderHistoryState>(
         builder: (context, state) {
@@ -50,12 +74,23 @@ class OrderHistoryView extends StatelessWidget {
           } else if (state is OrderHistoryLoaded) {
             return state.orders.isEmpty
                 ? const Center(
-                    child: Text(
-                      'Aucune commande trouvée',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black54,
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 64,
+                          color: Colors.black38,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Aucune commande trouvée',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 : ListView.builder(
@@ -68,12 +103,35 @@ class OrderHistoryView extends StatelessWidget {
                   );
           } else if (state is OrderHistoryError) {
             return Center(
-              child: Text(
-                'Erreur: ${state.message}',
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontSize: 16,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red[300],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Erreur: ${state.message}',
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.read<OrderHistoryBloc>().add(LoadOrderHistory());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFBA3400),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Réessayer'),
+                  ),
+                ],
               ),
             );
           }
@@ -91,6 +149,36 @@ class OrderCard extends StatelessWidget {
 
   const OrderCard({super.key, required this.order});
 
+  String _getStatusText(String etat) {
+    switch (etat.toLowerCase()) {
+      case 'completed':
+        return 'Terminée';
+      case 'pending':
+        return 'En attente';
+      case 'confirmed':
+        return 'Confirmée';
+      case 'cancelled':
+        return 'Annulée';
+      default:
+        return etat;
+    }
+  }
+
+  Color _getStatusColor(String etat) {
+    switch (etat.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -98,8 +186,16 @@ class OrderCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
         leading: Container(
           width: 40,
           height: 40,
@@ -108,7 +204,7 @@ class OrderCard extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: const Icon(
-            Icons.table_restaurant,
+            Icons.receipt,
             color: Colors.white,
             size: 20,
           ),
@@ -123,27 +219,71 @@ class OrderCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  'Montant: ${order.montant.toStringAsFixed(2)}€',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(order.etat).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _getStatusText(order.etat),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _getStatusColor(order.etat),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
             Text(
-              '${order.itemCount} Éléments',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black87,
+              DateFormat('dd/MM/yyyy à HH:mm').format(order.dateTime),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
               ),
             ),
-            Text(
-              'Table ${order.tableNumber}',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black87,
+            if (order.confirmation) ...[
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: Colors.green[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Confirmée',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ],
         ),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: Colors.grey),
           onSelected: (value) {
             if (value == 'view') {
-               _showDetailsDialog(context, order); 
+              _showDetailsDialog(context, order); 
             } else if (value == 'delete') {
               _showDeleteConfirmation(context, order);
             }
@@ -175,259 +315,240 @@ class OrderCard extends StatelessWidget {
     );
   }
 
-
-void _showDetailsDialog(BuildContext context, Order order) {
-
-  initializeDateFormatting('fr_FR', null);
-  
-  final dateFormat = DateFormat('EEEE, d MMMM yyyy', 'fr_FR');
-  final timeFormat = DateFormat('hh:mm a');
-  
-  String formattedDate = dateFormat.format(order.dateTime);
-  String formattedTime = timeFormat.format(order.dateTime);
-  
-  // Première lettre en majuscule
-  formattedDate = formattedDate.substring(0, 1).toUpperCase() + formattedDate.substring(1);
-  
-  showDialog(
-    context: context,
-    builder: (context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Container(
-          width: double.maxFinite,
-          padding: const EdgeInsets.all(0),
-          decoration: BoxDecoration(
-            color: Colors.white,
+  void _showDetailsDialog(BuildContext context, Order order) {
+    initializeDateFormatting('fr_FR', null);
+    
+    final dateFormat = DateFormat('EEEE, d MMMM yyyy', 'fr_FR');
+    final timeFormat = DateFormat('HH:mm');
+    
+    String formattedDate = dateFormat.format(order.dateTime);
+    String formattedTime = timeFormat.format(order.dateTime);
+    
+    // Première lettre en majuscule
+    formattedDate = formattedDate.substring(0, 1).toUpperCase() + formattedDate.substring(1);
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // En-tête
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Détails',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFBA3400),
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFFBA3400)),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Contenu principal
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: Container(
+            width: double.maxFinite,
+            padding: const EdgeInsets.all(0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // En-tête
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFDB9051),
-                              shape: BoxShape.circle,
+                      const Text(
+                        'Détails de la commande',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFBA3400),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFFBA3400)),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Contenu principal
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFDB9051),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.receipt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.table_restaurant,
-                              color: Colors.white,
-                              size: 20,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Commande ${order.orderNumber}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Statut: ${_getStatusText(order.etat)}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: _getStatusColor(order.etat),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Informations de la commande
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Table ${order.tableNumber}',
-                                style: const TextStyle(
-                                  fontSize: 16,
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    formattedDate,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    formattedTime,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (order.confirmation) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.check_circle, size: 16, color: Colors.green[600]),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Commande confirmée',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.green[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Total de la commande
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFBA3400).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Montant total',
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                               Text(
-                                'Commande ${order.orderNumber}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                                '${order.montant.toStringAsFixed(2)}€',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Color(0xFFBA3400),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        formattedDate,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                      Text(
-                        formattedTime,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      
-                      const Divider(height: 1, color: Colors.grey),
-                      
-                      // En-tête du tableau
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                'Éléments',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: Text(
-                                'Qté',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                'Prix',
-                                textAlign: TextAlign.end,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      const Divider(height: 1, color: Colors.grey),
-                      
-                      // Liste des éléments
-                      ...order.items.map((item) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text(item.name),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: Text(
-                                '${item.quantity}',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                '${item.price.toStringAsFixed(0)}€',
-                                textAlign: TextAlign.end,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
-                      
-                      const Divider(height: 1, color: Colors.grey),
-                      
-                      // Total
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Total',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${order.totalAmount.toStringAsFixed(0)}€',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                        
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-
-
- void _showDeleteConfirmation(BuildContext context, Order order) {
-  
-  final orderHistoryBloc = context.read<OrderHistoryBloc>();
-  
-  showDialog(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        title: const Text('Confirmation'),
-        content: const Text('Voulez-vous vraiment supprimer cette commande de l\'historique?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () {
-             
-              orderHistoryBloc.add(DeleteOrder(order.id));
-              Navigator.pop(dialogContext);
-            },
-            child: const Text(
-              'Supprimer',
-              style: TextStyle(color: Colors.red),
+              ],
             ),
           ),
-        ],
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, Order order) {
+    final orderHistoryBloc = context.read<OrderHistoryBloc>();
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: const Text('Confirmation'),
+          content: const Text('Voulez-vous vraiment supprimer cette commande de l\'historique?\n\nCette action ne supprimera pas la commande réelle, elle sera juste cachée de votre historique.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () {
+                orderHistoryBloc.add(DeleteOrder(order.id));
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Supprimer',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
 }

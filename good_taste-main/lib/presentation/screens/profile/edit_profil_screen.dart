@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:formz/formz.dart';
 
+
+
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -76,22 +78,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _logger.info('Image de profil temporaire sélectionnée: ${image.path}');
     }
   }
-
-  void _validatePhoneNumber(String value) {
-    final phoneNumber = PhoneNumber.dirty(value);
-    setState(() {
-      _phoneNumber = phoneNumber;
-    });
-    context.read<ProfileBloc>().add(ProfilePhoneNumberChanged(value));
-  }
-
-  void _updateUsername(String value) {
-    context.read<ProfileBloc>().add(ProfileUsernameChanged(value));
-  }
-
-  void _updateEmail(String value) {
-    context.read<ProfileBloc>().add(ProfileEmailChanged(value));
-  }
+void _validatePhoneNumber(String value) {
+  final phoneNumber = PhoneNumber.dirty(value);
+  setState(() {
+    _phoneNumber = phoneNumber;
+  });
+  // Pas besoin d'émettre d'événement ici, on le fera seulement à la soumission
+}
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +158,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Nom d'utilisateur
+                // Nom d'utilisateur (lecture seule)
                 const Text(
                   'Nom d\'utilisateur',
                   style: TextStyle(
@@ -178,22 +171,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 5),
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8C8B3),
+                    color: const Color(0xFFF8C8B3).withOpacity(0.7),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: TextField(
                     controller: _usernameController,
-                    onChanged: _updateUsername,
+                    enabled: false,
                     decoration: const InputDecoration(
                       hintText: 'Nom d\'utilisateur',
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                      disabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.transparent),
+                        borderRadius: BorderRadius.all(Radius.circular(30)),
+                      ),
                     ),
+                    style: const TextStyle(color: Color(0xFF757575)),
                   ),
                 ),
                 const SizedBox(height: 15),
                 
-                // Adresse e-mail
+                // Adresse e-mail (lecture seule)
                 const Text(
                   'Adresse e-mail',
                   style: TextStyle(
@@ -206,22 +204,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 5),
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8C8B3),
+                    color: const Color(0xFFF8C8B3).withOpacity(0.7),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: TextField(
                     controller: _emailController,
-                    onChanged: _updateEmail,
+                    enabled: false,
                     decoration: const InputDecoration(
                       hintText: 'Adresse e-mail',
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                      disabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.transparent),
+                        borderRadius: BorderRadius.all(Radius.circular(30)),
+                      ),
                     ),
+                    style: const TextStyle(color: Color(0xFF757575)),
                   ),
                 ),
                 const SizedBox(height: 15),
                 
-                // Numéro de téléphone
+                // Numéro de téléphone (modifiable)
                 const Text(
                   'Numéro de téléphone',
                   style: TextStyle(
@@ -252,24 +255,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 30),
                 
                
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF245536),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                    ),
-                    onPressed: state.isValid ? () {
-                     
-                      context.read<ProfileBloc>().add(ProfileSubmitted());
-                    } : null,
-                    child: const Text('Enregistrer', style: TextStyle(fontSize: 16)),
-                  ),
-                ),
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF245536),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 15),
+    ),
+    onPressed: _phoneNumber.isValid ? () {
+      // Vérifie si le numéro a vraiment changé
+      final currentPhone = context.read<ProfileBloc>().state.phoneNumber.value;
+      final newPhone = _phoneNumberController.text;
+      
+      if (newPhone != currentPhone) {
+        context.read<ProfileBloc>().add(
+          PhoneNumberSubmitted(newPhone),
+        );
+      } else {
+        // Si aucun changement, on ferme simplement
+        Navigator.of(context).pop();
+      }
+    } : null,
+    child: const Text('Enregistrer', style: TextStyle(fontSize: 16)),
+  ),
+),
                 
                
                 if (state.errorMessage != null)

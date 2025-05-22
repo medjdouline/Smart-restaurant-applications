@@ -27,3 +27,13 @@ class ToggleTableStatus extends TablesEvent {
   @override
   List<Object> get props => [tableId];
 }
+
+// Nouvel événement pour convertir une table réservée en occupée
+class StartReservation extends TablesEvent {
+  final String tableId;
+
+  const StartReservation({required this.tableId});
+
+  @override
+  List<Object> get props => [tableId];
+}

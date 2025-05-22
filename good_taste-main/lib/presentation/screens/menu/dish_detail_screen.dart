@@ -158,7 +158,7 @@ Widget _buildTopBar(BuildContext context) {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              "${dish.price.toStringAsFixed(2)} €",
+              "${dish.price.toStringAsFixed(0)} DZD",
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,

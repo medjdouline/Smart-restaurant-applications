@@ -37,7 +37,32 @@ class TablesRepository {
       orderCount: 0,
       customerCount: 0,
     ),
-  
+  RestaurantTable(
+  id: 'T03',
+  capacity: 2,
+  isOccupied: false,
+  isReserved: true,
+  orderCount: 0,
+  customerCount: 0,
+  reservationStart: DateTime.now().add(const Duration(minutes: 30)),
+  reservationEnd: DateTime.now().add(const Duration(hours: 2)),
+  clientName: 'Sophie Martin',
+  reservationPersonCount: 2,
+  reservationStatus: 'En attente',
+),
+RestaurantTable(
+  id: 'T04',
+  capacity: 4,
+  isOccupied: false,
+  isReserved: true,
+  orderCount: 0,
+  customerCount: 0,
+  reservationStart: DateTime.now().subtract(const Duration(minutes: 15)),
+  reservationEnd: DateTime.now().add(const Duration(hours: 1, minutes: 45)),
+  clientName: 'Thomas Dubois',
+  reservationPersonCount: 4,
+  reservationStatus: 'En attente',
+),
     
   ];
 
@@ -238,4 +263,40 @@ class TablesRepository {
     
     return order;
   }
+
+  // Start a reservation (convert from reserved to occupied)
+Future<RestaurantTable> startReservation(String tableId) async {
+  // Simulate network delay
+  await Future.delayed(const Duration(milliseconds: 600));
+  
+  final index = _tables.indexWhere((table) => table.id == tableId);
+  if (index == -1) {
+    throw Exception('Table not found');
+  }
+  
+  // Verify that the table is reserved
+  if (!_tables[index].isReserved) {
+    throw Exception('Table is not reserved');
+  }
+  
+  // Create a new table with updated status
+  final updatedTable = RestaurantTable(
+    id: _tables[index].id,
+    capacity: _tables[index].capacity,
+    isOccupied: true,
+    isReserved: true,
+    orderCount: 0,
+    customerCount: _tables[index].reservationPersonCount ?? 1,
+    reservationStart: _tables[index].reservationStart,
+    reservationEnd: _tables[index].reservationEnd,
+    clientName: _tables[index].clientName,
+    reservationPersonCount: _tables[index].reservationPersonCount,
+    reservationStatus: 'Confirmée', // Mettre à jour le statut à "Confirmée"
+  );
+  
+  // Update the list
+  _tables[index] = updatedTable;
+  
+  return updatedTable;
+}
 }

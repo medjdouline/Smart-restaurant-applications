@@ -565,42 +565,58 @@ void _showOrderDetailsModal(BuildContext context, Order order) {
             const Divider(),
             
             // Liste des articles - le reste du code inchangé
+           Expanded(
+  child: ListView.builder(
+    itemCount: order.items.length,
+    itemBuilder: (context, index) {
+      // Vérifier si l'item est bien un OrderItem
+      if (order.items[index] is! Map && order.items[index] is! OrderItem) {
+        return const SizedBox.shrink();
+      }
+      
+      // Créer un OrderItem à partir des données
+      OrderItem item;
+      try {
+        if (order.items[index] is OrderItem) {
+          item = order.items[index] as OrderItem;
+        } else {
+          // Si c'est un Map, le convertir en OrderItem
+          final itemMap = order.items[index] as Map<String, dynamic>;
+          item = OrderItem.fromJson(itemMap);
+        }
+      } catch (e) {
+        return const SizedBox.shrink();
+      }
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
             Expanded(
-              child: ListView.builder(
-                itemCount: order.items.length,
-                itemBuilder: (context, index) {
-                  if (order.items[index] is OrderItem) {
-                    OrderItem item = order.items[index] as OrderItem;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(item.name),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              '${item.quantity}',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              item.price.toStringAsFixed(2),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
+              flex: 3,
+              child: Text(item.name),
+            ),
+            Expanded(
+              flex: 1,
+              child: Text(
+                '${item.quantity}',
+                textAlign: TextAlign.center,
               ),
             ),
+            Expanded(
+              flex: 1,
+              child: Text(
+                item.price.toStringAsFixed(2),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  ),
+),
+                 
             
             // Total
             Padding(

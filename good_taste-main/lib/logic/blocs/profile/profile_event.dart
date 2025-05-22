@@ -9,24 +9,6 @@ abstract class ProfileEvent extends Equatable {
 
 class ProfileLoaded extends ProfileEvent {}
 
-class ProfileUsernameChanged extends ProfileEvent {
-  const ProfileUsernameChanged(this.username);
-
-  final String username;
-
-  @override
-  List<Object> get props => [username];
-}
-
-class ProfileEmailChanged extends ProfileEvent {
-  const ProfileEmailChanged(this.email);
-
-  final String email;
-
-  @override
-  List<Object> get props => [email];
-}
-
 class ProfilePhoneNumberChanged extends ProfileEvent {
   const ProfilePhoneNumberChanged(this.phoneNumber);
 
@@ -35,6 +17,8 @@ class ProfilePhoneNumberChanged extends ProfileEvent {
   @override
   List<Object> get props => [phoneNumber];
 }
+
+
 
 class ProfileImageChanged extends ProfileEvent {
   const ProfileImageChanged(this.profileImage);
@@ -46,3 +30,20 @@ class ProfileImageChanged extends ProfileEvent {
 }
 
 class ProfileSubmitted extends ProfileEvent {}
+class ProfileAllergiesUpdated extends ProfileEvent {
+  final List<String> allergies;
+  const ProfileAllergiesUpdated(this.allergies);
+
+  @override
+  List<Object> get props => [allergies];
+}
+
+// Add the missing PhoneNumberSubmitted event
+class PhoneNumberSubmitted extends ProfileEvent {
+  const PhoneNumberSubmitted(this.phoneNumber);
+
+  final String phoneNumber;
+
+  @override
+  List<Object> get props => [phoneNumber];
+}

@@ -1,5 +1,4 @@
 // lib/data/repositories/tables_api_repository.dart
-import 'dart:convert';
 import 'package:logger/logger.dart';
 import '../../core/api/api_service.dart';
 import '../models/table.dart';
@@ -108,33 +107,72 @@ class TablesApiRepository {
   }
 
   // Helper method to parse table data from Firebase format
-  RestaurantTable _parseTableFromFirebase(Map<String, dynamic> data) {
-    // Extract table ID from the data
-    final String id = data['id'] ?? '';
-    
-    // Extract table status and convert to boolean isOccupied
-    final String status = data['etatTable'] ?? 'libre';
-    final bool isOccupied = status == 'occupee';
-    
-    // Extract orders if available
-    final List<dynamic> orders = data['orders'] ?? [];
-    final int orderCount = orders.length;
-    
-    // Calculate customer count based on orders or use default
-    int customerCount = 0;
-    if (orderCount > 0) {
-      // In a real app, we might want to calculate this based on order data
-      customerCount = orderCount * 2; // Rough estimate: 2 customers per order
-    }
-    
-    return RestaurantTable(
-      id: id,
-      capacity: data['capacite'] ?? 4, // Default capacity if not provided
-      isOccupied: isOccupied,
-      orderCount: orderCount,
-      customerCount: customerCount,
-    );
+// Mise à jour de la fonction _parseTableFromFirebase dans TablesApiRepository
+
+// Voici un extrait modifié à intégrer dans tables_api_repository.dart
+// Remplacer la méthode _parseTableFromFirebase existante par celle-ci
+
+RestaurantTable _parseTableFromFirebase(Map<String, dynamic> data) {
+  final String id = data['id'] ?? '';
+  final String status = data['etatTable'] ?? 'libre';
+  final bool isOccupied = status == 'occupee';
+  final bool isReserved = status == 'reservee'; // Utilise le statut directement
+  
+  // Parse reservation data
+  DateTime? reservationStart;
+  DateTime? reservationEnd;
+  String? clientName;
+  int? reservationPersonCount;
+  String? reservationStatus = 'En attente';
+
+  if (data.containsKey('reservation') && data['reservation'] != null) {
+    final reservationData = data['reservation'];
+    reservationStart = reservationData['date_time'] != null 
+        ? DateTime.tryParse(reservationData['date_time']) 
+        : null;
+    clientName = reservationData['client']?['username'] ?? 'Inconnu';
+    reservationPersonCount = reservationData['party_size'];
+    reservationStatus = reservationData['status'] == 'confirmee' 
+        ? 'Confirmée' 
+        : 'En attente';
   }
+
+  return RestaurantTable(
+    id: id,
+    capacity: data['capacite'] ?? 4,
+    isOccupied: isOccupied,
+    isReserved: isReserved, // Ceci est maintenant correctement défini
+    orderCount: (data['orders'] as List?)?.length ?? 0,
+    customerCount: 0, // À calculer selon ta logique
+    reservationStart: reservationStart,
+    reservationEnd: reservationEnd,
+    clientName: clientName,
+    reservationPersonCount: reservationPersonCount,
+    reservationStatus: reservationStatus,
+  );
+}
+// Nouvelle méthode à ajouter au TablesApiRepository
+Future<RestaurantTable> startReservation(String tableId) async {
+  try {
+    // Changement de PUT à POST pour correspondre à l'API Django
+    final response = await ApiService.client.post(
+      '/tables/$tableId/confirm-reservation/',
+      data: {}, // Tu peux ajouter des données si nécessaire
+    );
+    
+    _logger.d('Start reservation response: $response');
+    
+    // Recharge les tables pour obtenir la table mise à jour
+    final tables = await getAllTables();
+    return tables.firstWhere(
+      (t) => t.id == tableId,
+      orElse: () => throw Exception('Table not found after update'),
+    );
+  } catch (e) {
+    _logger.e('Error starting reservation: $e');
+    rethrow;
+  }
+}
 
   // Helper method to parse order data from Firebase format
   Order _parseOrderFromFirebase(Map<String, dynamic> data, String tableId) {

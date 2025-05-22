@@ -114,7 +114,7 @@ class _SubcategoryDishesView extends StatelessWidget {
     if (dishes.isEmpty) {
       return const Center(
         child: Text(
-          'Aucun plat disponible dans cette catégorie',
+          'Aucun plat disponible dans cette catÃ©gorie',
           style: TextStyle(
             color: Color(0xFF245536),
             fontSize: 16,
@@ -203,7 +203,7 @@ class _SubcategoryDishesView extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${dish.price.toStringAsFixed(2)} €',
+                        '${dish.price.toStringAsFixed(0)} DZD',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,

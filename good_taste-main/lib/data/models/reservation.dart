@@ -1,15 +1,6 @@
-// lib/data/models/reservation.dart
-import 'package:equatable/equatable.dart';
+// Dans reservation.dart - Ajout d'une méthode factory pour créer depuis l'API
 
-enum ReservationStatus {
-  confirmed,
-  pending,
-  canceled,
-  completed,
-  late
-}
-
-class Reservation extends Equatable {
+class Reservation {
   final String id;
   final String userId;
   final DateTime date;
@@ -18,7 +9,7 @@ class Reservation extends Equatable {
   final String tableNumber;
   final ReservationStatus status;
 
-  const Reservation({
+  Reservation({
     required this.id,
     required this.userId,
     required this.date,
@@ -28,10 +19,56 @@ class Reservation extends Equatable {
     required this.status,
   });
 
-  @override
-  List<Object?> get props => [id, userId, date, timeSlot, numberOfPeople, tableNumber, status];
+  // Factory constructor pour créer depuis les données de l'API
+  factory Reservation.fromApiData(Map<String, dynamic> data, String userId) {
+    // Convertir la date_time du backend
+    DateTime reservationDate;
+    String timeSlot;
+    
+    try {
+      final dateTimeStr = data['date_time'] as String;
+      final dateTime = DateTime.parse(dateTimeStr);
+      reservationDate = dateTime;
+      
+      // Extraire le timeSlot depuis la date_time
+      final hour = dateTime.hour;
+      timeSlot = '${hour}h-${hour + 2}h'; // Durée de 2h par défaut
+    } catch (e) {
+      reservationDate = DateTime.now();
+      timeSlot = '18h-20h';
+    }
 
-  // Pour transformer le statut en texte français pour l'affichage
+    return Reservation(
+      id: data['id'].toString(),
+      userId: userId,
+      date: reservationDate,
+      timeSlot: timeSlot,
+      numberOfPeople: data['party_size'] ?? 0,
+      tableNumber: data['table']?['number']?.toString() ?? '1',
+      status: _mapStatusFromApi(data['status']),
+    );
+  }
+
+  // Méthode statique pour mapper les statuts
+  static ReservationStatus _mapStatusFromApi(String? apiStatus) {
+    switch (apiStatus?.toLowerCase()) {
+      case 'confirmed':
+        return ReservationStatus.confirmed;
+      case 'pending':
+        return ReservationStatus.pending;
+      case 'cancelled':
+      case 'canceled':
+        return ReservationStatus.canceled;
+      case 'completed':
+        return ReservationStatus.completed;
+      case 'late':
+        return ReservationStatus.late;
+      default:
+        return ReservationStatus.pending;
+    }
+  }
+
+  // Getter pour le texte du statut
   String get statusText {
     switch (status) {
       case ReservationStatus.confirmed:
@@ -46,24 +83,12 @@ class Reservation extends Equatable {
         return 'En retard';
     }
   }
-
-  // Pour obtenir la couleur du statut
-  String get statusColor {
-    switch (status) {
-      case ReservationStatus.confirmed:
-        return '#2E582C'; // Vert
-      case ReservationStatus.pending:
-        return '#E8B38C'; // Orange clair
-      case ReservationStatus.canceled:
-        return '#B85C38'; // Rouge
-      case ReservationStatus.completed:
-        return '#888888'; // Gris
-      case ReservationStatus.late:
-      return '#FFA500'; // Orange vif 
-    }
-  }
 }
 
-
-
-
+enum ReservationStatus {
+  confirmed,
+  pending,
+  canceled,
+  completed,
+  late,
+}

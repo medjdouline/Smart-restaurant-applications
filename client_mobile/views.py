@@ -31,7 +31,7 @@ def view_client_profile(request):
             'email': client_data.get('email', ''),
             'birthdate': client_data.get('birthdate', ''),
             'gender': client_data.get('gender', ''),
-            'phoneNumber': client_data.get('phoneNumber', ''),
+            'phone_number' : client_data.get('phone_number',''),
             'fidelityPoints': client_data.get('fidelityPoints', 0),
             'preferences': client_data.get('preferences', []),
             'allergies': client_data.get('allergies', []),
@@ -46,29 +46,23 @@ def view_client_profile(request):
 @api_view(['PUT'])
 @permission_classes([IsClient])
 def update_client_profile(request):
-    """Update client profile information (excluding username)"""
     try:
         client_id = request.user.uid
-        
-        # Allow only specific fields to be updated
-        allowed_fields = [
-            'email', 'birthdate', 'gender', 'phoneNumber', 
-            'preferences', 'allergies', 'restrictions'
-        ]
-        
         update_data = {}
-        for field in allowed_fields:
-            if field in request.data:
-                update_data[field] = request.data[field]
-        
+
+        # Normalise les noms de champs
+        if 'phoneNumber' in request.data:
+            update_data['phone_number'] = request.data['phoneNumber']
+        elif 'phone_number' in request.data:
+            update_data['phone_number'] = request.data['phone_number']
+
         if not update_data:
-            return Response({'error': 'No valid fields to update'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No valid fields to update'}, status=400)
             
         firebase_crud.update_doc('clients', client_id, update_data)
         return Response({'message': 'Profile updated successfully'})
     except Exception as e:
-        logger.error(f"Error updating client profile: {str(e)}")
-        return Response({'error': 'Failed to update profile'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': str(e)}, status=500)
 
 # ==================
 # Orders Endpoints
@@ -81,7 +75,7 @@ def get_orders_history(request):
     try:
         client_id = request.user.uid
         
-        # Query orders for this client
+        # Query orders for this client, excluding hidden ones
         orders = firebase_crud.query_collection(
             'commandes',
             'idC',
@@ -89,16 +83,22 @@ def get_orders_history(request):
             client_id
         )
         
+        # Filter out hidden orders
+        orders = [order for order in orders if not order.get('hidden_from_history', False)]
+        
         # Format the response
         order_history = []
         for order in orders:
-            order_history.append({
-                'id': order.id,
+            order_data = {
+                'id': order.get('id'),  # Changed from order.id to order.get('id')
                 'date': order.get('dateCreation', ''),
                 'montant': order.get('montant', 0),
                 'etat': order.get('etat', ''),
-                'confirmation': order.get('confirmation', False)
-            })
+                'confirmation': order.get('confirmation', False),
+                'table_number': order.get('tableNumber', ''),
+                'items': order.get('items', []),
+            }
+            order_history.append(order_data)
             
         # Sort by date (newest first)
         order_history.sort(key=lambda x: x['date'], reverse=True)
@@ -107,6 +107,7 @@ def get_orders_history(request):
     except Exception as e:
         logger.error(f"Error getting order history: {str(e)}")
         return Response({'error': 'Failed to retrieve order history'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -178,13 +179,14 @@ def delete_order_history(request, order_id):
         if not order or order.get('idC') != client_id:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # We don't actually delete the order, just mark it as hidden from history
+        # Don't actually delete the order, just mark it as hidden from history
         firebase_crud.update_doc('commandes', order_id, {'hidden_from_history': True})
         
         return Response({'message': 'Order removed from history'})
     except Exception as e:
         logger.error(f"Error deleting order from history: {str(e)}")
         return Response({'error': 'Failed to delete order'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # ==================
 # Favorites Endpoints

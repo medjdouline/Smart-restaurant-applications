@@ -452,12 +452,131 @@ def get_dashboard(request):
     except Exception as e:
         logger.error(f"Error fetching dashboard data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+    
+@api_view(['GET'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsServer])
+def get_order_details(request, order_id):
+    """Get detailed information for a specific order"""
+    try:
+        # Get the main order document
+        order_ref = db.collection('commandes').document(order_id)
+        order_doc = order_ref.get()
+        
+        if not order_doc.exists:
+            return JsonResponse({'error': 'Order not found'}, status=404)
+        
+        order_data = order_doc.to_dict()
+        
+        # Get client information
+        client_info = None
+        if 'idC' in order_data:
+            client_ref = db.collection('clients').document(order_data['idC'])
+            client_doc = client_ref.get()
+            if client_doc.exists:
+                client_data = client_doc.to_dict()
+                client_info = {
+                    'id': order_data['idC'],
+                    'username': client_data.get('username', 'Unknown'),
+                    'email': client_data.get('email', 'Unknown')
+                }
+        
+        # Get table information
+        table_info = None
+        if 'idTable' in order_data:
+            table_ref = db.collection('tables').document(order_data['idTable'])
+            table_doc = table_ref.get()
+            if table_doc.exists:
+                table_data = table_doc.to_dict()
+                table_info = {
+                    'id': order_data['idTable'],
+                    'nbrPersonne': table_data.get('nbrPersonne', 0),
+                    'etatTable': table_data.get('etatTable', 'Unknown')
+                }
+        
+        # Get order items from commandes_plat collection
+        order_items = []
+        total_calculated = 0.0
+        
+        order_items_ref = db.collection('commandes_plat').where('idCmd', '==', order_id)
+        for item_doc in order_items_ref.stream():
+            item_data = item_doc.to_dict()
+            
+            # Get dish information
+            dish_info = None
+            dish_price = 0.0
+            if 'idP' in item_data:
+                dish_ref = db.collection('plats').document(item_data['idP'])
+                dish_doc = dish_ref.get()
+                if dish_doc.exists:
+                    dish_data = dish_doc.to_dict()
+                    dish_price = dish_data.get('prix', 0.0)
+                    dish_info = {
+                        'id': item_data['idP'],
+                        'nom': dish_data.get('nom', 'Unknown'),
+                        'prix': dish_price,
+                        'description': dish_data.get('description', ''),
+                        'note': dish_data.get('note', 0),
+                        'estimation': dish_data.get('estimation', 0)
+                    }
+            
+            quantity = item_data.get('quantité', 1)
+            item_total = dish_price * quantity
+            total_calculated += item_total
+            
+            order_items.append({
+                'dish': dish_info,
+                'quantity': quantity,
+                'unit_price': dish_price,
+                'total_price': round(item_total, 2)
+            })
+        
+        # Get server information if available
+        server_info = None
+        serveur_commande_ref = db.collection('serveur_commande').where('idCmd', '==', order_id).limit(1)
+        serveur_commande_docs = list(serveur_commande_ref.stream())
+        
+        if serveur_commande_docs:
+            serveur_commande_data = serveur_commande_docs[0].to_dict()
+            if 'idE' in serveur_commande_data:
+                employee_ref = db.collection('employes').document(serveur_commande_data['idE'])
+                employee_doc = employee_ref.get()
+                if employee_doc.exists:
+                    employee_data = employee_doc.to_dict()
+                    server_info = {
+                        'id': serveur_commande_data['idE'],
+                        'nom': employee_data.get('nomE', 'Unknown'),
+                        'prenom': employee_data.get('prenomE', 'Unknown'),
+                        'username': employee_data.get('usernameE', 'Unknown')
+                    }
+        
+        # Format the response
+        detailed_order = {
+            'id': order_id,
+            'montant': order_data.get('montant', 0.0),
+            'calculated_total': round(total_calculated, 2),
+            'dateCreation': order_data.get('dateCreation'),
+            'etat': order_data.get('etat', 'Unknown'),
+            'confirmation': order_data.get('confirmation', False),
+            'client': client_info,
+            'table': table_info,
+            'server': server_info,
+            'items': order_items,
+            'items_count': len(order_items),
+            'total_quantity': sum(item['quantity'] for item in order_items)
+        }
+        
+        return JsonResponse(detailed_order, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error fetching order details: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['GET'])
 @authentication_classes([FirebaseAuthentication])
 @permission_classes([IsServer])
 def get_all_tables(request):
-    """Get all tables"""
+    """Get all tables with reservation information"""
     try:
         tables = []
         tables_ref = db.collection('tables')
@@ -466,22 +585,56 @@ def get_all_tables(request):
             table_data = doc.to_dict()
             table_data['id'] = doc.id
             
-            # Get active orders for this table
-            orders = []
-            reservations_ref = db.collection('reservations').where('table_id', '==', doc.id)
-            for res_doc in reservations_ref.stream():
-                res_data = res_doc.to_dict()
-                if 'client_id' in res_data:
-                    orders_ref = db.collection('commandes').where('idC', '==', res_data['client_id'])
-                    for order_doc in orders_ref.stream():
-                        order_data = order_doc.to_dict()
-                        if order_data.get('etat') not in ['servie', 'annulee']:
-                            orders.append({
-                                'id': order_doc.id,
-                                'etat': order_data.get('etat', 'Unknown'),
-                                'montant': order_data.get('montant', 0)
-                            })
+            # Get reservation information for this table
+            reservation_info = None
+            if table_data.get('etatTable') == 'reservee':
+                # Find pending reservation for this table
+                reservations_ref = db.collection('reservations').where('table_id', '==', doc.id).where('status', '==', 'en_attente')
+                for res_doc in reservations_ref.stream():
+                    res_data = res_doc.to_dict()
+                    
+                    # Get client information
+                    client_info = None
+                    if res_data.get('client_id'):
+                        client_ref = db.collection('clients').document(res_data['client_id'])
+                        client_doc = client_ref.get()
+                        if client_doc.exists:
+                            client_data = client_doc.to_dict()
+                            client_info = {
+                                'id': res_data['client_id'],
+                                'username': client_data.get('username', 'Unknown'),
+                                'email': client_data.get('email', 'Unknown')
+                            }
+                    
+                    reservation_info = {
+                        'id': res_doc.id,
+                        'date_time': res_data.get('date_time'),
+                        'party_size': res_data.get('party_size'),
+                        'status': res_data.get('status'),
+                        'client': client_info,
+                        'created_at': res_data.get('created_at')
+                    }
+                    break  # Take the first pending reservation
             
+            # Get active orders for this table (only for occupied tables)
+            orders = []
+            if table_data.get('etatTable') == 'occupee':
+                # Find confirmed reservations for this table to get client orders
+                reservations_ref = db.collection('reservations').where('table_id', '==', doc.id).where('status', '==', 'confirmee')
+                for res_doc in reservations_ref.stream():
+                    res_data = res_doc.to_dict()
+                    if 'client_id' in res_data:
+                        orders_ref = db.collection('commandes').where('idC', '==', res_data['client_id'])
+                        for order_doc in orders_ref.stream():
+                            order_data = order_doc.to_dict()
+                            if order_data.get('etat') not in ['servie', 'annulee']:
+                                orders.append({
+                                    'id': order_doc.id,
+                                    'etat': order_data.get('etat', 'Unknown'),
+                                    'montant': order_data.get('montant', 0)
+                                })
+            
+            table_data['reservation'] = reservation_info
             table_data['orders'] = orders
             tables.append(table_data)
         
@@ -490,12 +643,13 @@ def get_all_tables(request):
         logger.error(f"Error fetching tables: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @api_view(['PUT'])
 @authentication_classes([FirebaseAuthentication])
 @permission_classes([IsServer])
 @csrf_exempt
 def update_table_status(request, table_id):
-    """Update table status"""
+    """Update table status with reservation confirmation logic"""
     try:
         data = json.loads(request.body)
         new_status = data.get('status')
@@ -514,12 +668,80 @@ def update_table_status(request, table_id):
         if not table_doc.exists:
             return JsonResponse({'error': 'Table not found'}, status=404)
         
+        current_table_data = table_doc.to_dict()
+        current_status = current_table_data.get('etatTable')
+        
+        # Special logic for confirming reservations
+        if current_status == 'reservee' and new_status == 'occupee':
+            # Find the pending reservation for this table
+            reservations_ref = db.collection('reservations').where('table_id', '==', table_id).where('status', '==', 'en_attente')
+            reservation_found = False
+            
+            for res_doc in reservations_ref.stream():
+                # Update reservation status to 'confirmee'
+                res_ref = db.collection('reservations').document(res_doc.id)
+                res_ref.update({'status': 'confirmee'})
+                reservation_found = True
+                break  # Only confirm the first pending reservation
+            
+            if not reservation_found:
+                return JsonResponse({'error': 'No pending reservation found for this table'}, status=400)
+        
+        # Validation: Can't set table to 'reservee' manually through this endpoint
+        # This should only happen when a reservation is made through mobile app
+        if new_status == 'reservee':
+            return JsonResponse({'error': 'Cannot manually set table to reserved status. Use reservation system.'}, status=400)
+        
         # Update table status
         table_ref.update({'etatTable': new_status})
         
-        return JsonResponse({'message': 'Table status updated successfully'})
+        response_message = 'Table status updated successfully'
+        if current_status == 'reservee' and new_status == 'occupee':
+            response_message += ' and reservation confirmed'
+        
+        return JsonResponse({'message': response_message})
     except Exception as e:
         logger.error(f"Error updating table status: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsServer])
+@csrf_exempt
+def confirm_reservation(request, table_id):
+    """Specifically confirm a reservation and update table status"""
+    try:
+        table_ref = db.collection('tables').document(table_id)
+        table_doc = table_ref.get()
+        
+        if not table_doc.exists:
+            return JsonResponse({'error': 'Table not found'}, status=404)
+        
+        table_data = table_doc.to_dict()
+        if table_data.get('etatTable') != 'reservee':
+            return JsonResponse({'error': 'Table is not in reserved status'}, status=400)
+        
+        # Find the pending reservation for this table
+        reservations_ref = db.collection('reservations').where('table_id', '==', table_id).where('status', '==', 'en_attente')
+        reservation_found = False
+        
+        for res_doc in reservations_ref.stream():
+            # Update reservation status to 'confirmee'
+            res_ref = db.collection('reservations').document(res_doc.id)
+            res_ref.update({'status': 'confirmee'})
+            reservation_found = True
+            
+            # Update table status to 'occupee'
+            table_ref.update({'etatTable': 'occupee'})
+            break
+        
+        if not reservation_found:
+            return JsonResponse({'error': 'No pending reservation found for this table'}, status=400)
+        
+        return JsonResponse({'message': 'Reservation confirmed and table status updated to occupied'})
+    except Exception as e:
+        logger.error(f"Error confirming reservation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['GET'])

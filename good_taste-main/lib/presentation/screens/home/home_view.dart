@@ -263,7 +263,7 @@ Widget _buildRecommendationContent(double screenWidth) {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${dish.price.toStringAsFixed(2)} €',
+                      '${dish.price.toStringAsFixed(0)} DZD',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

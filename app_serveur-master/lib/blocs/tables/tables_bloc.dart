@@ -17,6 +17,7 @@ class TablesBloc extends Bloc<TablesEvent, TablesState> {
     on<LoadTables>(_onLoadTables);
     on<LoadTableOrders>(_onLoadTableOrders);
     on<ToggleTableStatus>(_onToggleTableStatus);
+    on<StartReservation>(_onStartReservation);
   }
 
   Future<void> _onLoadTables(LoadTables event, Emitter<TablesState> emit) async {
@@ -110,4 +111,22 @@ class TablesBloc extends Bloc<TablesEvent, TablesState> {
       add(LoadTables());
     }
   }
+Future<void> _onStartReservation(StartReservation event, Emitter<TablesState> emit) async {
+  try {
+    _logger.d('Starting reservation for table ${event.tableId}');
+    
+    // Appelle le bon endpoint d'API
+    final updatedTable = await _tablesRepository.startReservation(event.tableId);
+    
+    // Recharge les tables pour avoir les données fraîches
+    add(LoadTables());
+    
+  } catch (e) {
+    _logger.e('Error starting reservation: $e');
+    emit(state.copyWith(
+      status: TablesStatus.failure,
+      errorMessage: 'Erreur lors de la confirmation de réservation',
+    ));
+  }
+}
 }

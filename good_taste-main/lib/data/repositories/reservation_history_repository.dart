@@ -1,4 +1,5 @@
 // lib/data/repositories/reservation_history_repository.dart
+import 'package:flutter/material.dart';
 import 'package:good_taste/data/models/reservation.dart';
 import 'package:good_taste/data/models/user.dart';
 import 'package:good_taste/data/services/reservation_service.dart';
@@ -19,19 +20,44 @@ class ReservationHistoryRepository {
   final Set<String> _lateNotificationsSent = {};
   final Set<String> _canceledNotificationsSent = {};
 
-  Future<List<Reservation>> getReservationHistory(User user) async {
+Future<List<Reservation>> getReservationHistory(User user) async {
+  try {
+    // Récupérer les réservations depuis l'API au lieu des données locales
     final reservations = await _service.getReservations(user);
-    // Vérifier et mettre à jour les réservations en retard lors du chargement
+    
+    // Vérifier et mettre à jour les réservations en retard localement
     return await checkAndUpdateLateReservations(reservations);
+  } catch (e) {
+    debugPrint('Erreur lors de la récupération de l\'historique: $e');
+    // En cas d'erreur, retourner une liste vide ou relancer l'exception
+    rethrow;
   }
+}
 
   Future<bool> deleteReservation(String reservationId) async {
     return _service.deleteReservation(reservationId);
   }
  
   Future<bool> cancelReservation(String reservationId) async {
-    return _service.cancelReservation(reservationId);
+  try {
+    // Utiliser l'API pour annuler la réservation
+    final success = await _service.cancelReservation(reservationId);
+    
+    if (success) {
+      // Ajouter la réservation aux notifications d'annulation
+      if (!_canceledNotificationsSent.contains(reservationId)) {
+        // Vous pourriez vouloir récupérer les détails de la réservation pour la notification
+        // Pour l'instant, on marque juste comme envoyée
+        _canceledNotificationsSent.add(reservationId);
+      }
+    }
+    
+    return success;
+  } catch (e) {
+    debugPrint('Erreur lors de l\'annulation de la réservation: $e');
+    return false;
   }
+}
 
   Future<List<Reservation>> checkAndUpdateLateReservations(List<Reservation> reservations) async {
     List<Reservation> updatedReservations = [];

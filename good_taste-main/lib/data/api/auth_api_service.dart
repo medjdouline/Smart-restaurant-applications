@@ -24,6 +24,7 @@ class AuthApiService {
         'username': username,
         'phone_number': phoneNumber,
       },
+      requiresAuth: false,
     );
   }
 
@@ -39,6 +40,7 @@ class AuthApiService {
         'birthdate': dateOfBirth.toIso8601String().split('T')[0], // Format as YYYY-MM-DD
         'gender': gender,
       },
+      requiresAuth: false,
     );
   }
   Future<ApiResponse> signUpStep3({
@@ -51,6 +53,7 @@ class AuthApiService {
       'uid': uid,
       'allergies': allergies,
     },
+    requiresAuth: false,
   );
 }
 Future<ApiResponse> signUpStep4({
@@ -63,6 +66,7 @@ Future<ApiResponse> signUpStep4({
       'uid': uid,
       'restrictions': restrictions,
     },
+    requiresAuth: false,
   );
 }
 Future<ApiResponse> signUpStep5({
@@ -75,6 +79,7 @@ Future<ApiResponse> signUpStep5({
       'uid': uid,
       'preferences': preferences,
     },
+    requiresAuth: false,
   );
 }
 
@@ -89,6 +94,7 @@ Future<ApiResponse> clientLogin({
       'identifier': identifier,
       'password': password,
     },
+    requiresAuth: false,
   );
 }
 }

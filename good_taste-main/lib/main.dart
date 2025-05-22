@@ -21,6 +21,7 @@ import 'package:good_taste/presentation/screens/profile/preference_detail_screen
 import 'package:good_taste/presentation/screens/reservation/reservation_history_screen.dart';
 import 'package:good_taste/presentation/screens/order/order_history_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:good_taste/presentation/screens/profile/profile_screen.dart';
 import 'package:good_taste/logic/blocs/user/user_bloc.dart';
 import 'package:good_taste/logic/blocs/allergies/allergies_bloc.dart';
 import 'package:good_taste/logic/blocs/regime/regime_bloc.dart';
@@ -33,6 +34,9 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:good_taste/di/di.dart'; // Import the dependency injection
 import 'package:logging/logging.dart';
+import 'package:good_taste/data/repositories/profile_repository.dart';
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +75,10 @@ class MyApp extends StatelessWidget {
         RepositoryProvider<AuthRepository>(
           create: (context) => DependencyInjection.getAuthRepository(),
         ),
+        // ADD THIS: ProfileRepository provider
+        RepositoryProvider<ProfileRepository>(
+          create: (context) => DependencyInjection.getProfileRepository(),
+        ),
         RepositoryProvider(create: (context) => AllergiesRepository()),
         RepositoryProvider(create: (context) => RegimeRepository()), 
         RepositoryProvider(create: (context) => PreferencesRepository()),
@@ -98,6 +106,7 @@ class MyApp extends StatelessWidget {
           BlocProvider(
             create: (context) => ProfileBloc(
               authRepository: RepositoryProvider.of<AuthRepository>(context),
+              profileRepository: RepositoryProvider.of<ProfileRepository>(context),
             ),
           ),
           BlocProvider(

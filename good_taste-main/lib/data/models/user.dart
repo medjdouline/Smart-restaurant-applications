@@ -13,6 +13,8 @@ class User {
   final AllergiesModel allergies;
   final RegimeModel regimes; 
   final PreferencesModel preferences;
+  final String? idToken;
+  final int loyaltyPoints; 
 
   const User({
     required this.id,
@@ -25,6 +27,8 @@ class User {
     this.allergies = const AllergiesModel(),
     this.regimes = const RegimeModel(), 
     this.preferences = const PreferencesModel(),
+    this.idToken,
+    this.loyaltyPoints = 0, // AJOUTÉ
   });
   
   static const empty = User(
@@ -38,6 +42,7 @@ class User {
     allergies: AllergiesModel(),
     regimes: RegimeModel(), 
     preferences: PreferencesModel(),
+    loyaltyPoints: 0, // AJOUTÉ
   );
   
   bool get isEmpty => this == User.empty;
@@ -55,6 +60,7 @@ class User {
     AllergiesModel? allergies,
     RegimeModel? regimes, 
     PreferencesModel? preferences,
+    int? loyaltyPoints, // AJOUTÉ
   }) {
     return User(
       id: id ?? this.id,
@@ -67,6 +73,7 @@ class User {
       allergies: allergies ?? this.allergies,
       regimes: regimes ?? this.regimes, 
       preferences: preferences ?? this.preferences,
+      loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
     );
   }
   
@@ -83,7 +90,8 @@ class User {
            other.dateOfBirth == dateOfBirth &&
            other.allergies == allergies &&
            other.regimes == regimes && 
-           other.preferences == preferences; 
+           other.preferences == preferences &&
+           other.loyaltyPoints == loyaltyPoints;
   }
   
   @override
@@ -96,5 +104,6 @@ class User {
                      (dateOfBirth?.hashCode ?? 0) ^
                      allergies.hashCode ^
                      regimes.hashCode^ 
-                     preferences.hashCode;
+                     preferences.hashCode ^
+                     loyaltyPoints.hashCode; 
 }

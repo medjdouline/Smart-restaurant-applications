@@ -159,69 +159,123 @@ Future<String?> _getAuthToken() async {
 
 // Récupérer toutes les réservations
 Future<List<Reservation>> getReservations(User user) async {
-  // Simuler un délai réseau
-  await Future.delayed(const Duration(milliseconds: 800));
-  
- 
-  if (_reservations.isEmpty) {
-    _reservations.addAll([
+  try {
+    final token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Utilisateur non authentifié');
+    }
+
+    final response = await _apiClient.get(
+      'client-mobile/reservations/',
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.success) {
+      final List<dynamic> reservationsData = response.data;
       
-    ]);
+      return reservationsData.map((data) {
+        // Convertir la date_time du backend
+        DateTime reservationDate;
+        String timeSlot;
+        
+        try {
+          final dateTimeStr = data['date_time'] as String;
+          final dateTime = DateTime.parse(dateTimeStr);
+          reservationDate = dateTime;
+          
+          // Extraire le timeSlot depuis la date_time
+          // Supposons un format comme "18:00" pour l'heure de début
+          final hour = dateTime.hour;
+          timeSlot = '${hour}h-${hour + 2}h'; // Durée de 2h par défaut
+        } catch (e) {
+          debugPrint('Erreur parsing date_time: $e');
+          reservationDate = DateTime.now();
+          timeSlot = '18h-20h';
+        }
+
+        return Reservation(
+          id: data['id'].toString(),
+          userId: user.id,
+          date: reservationDate,
+          timeSlot: timeSlot,
+          numberOfPeople: data['party_size'] ?? 0,
+          tableNumber: data['table']?['number']?.toString() ?? '1',
+          status: _mapStatusFromApi(data['status']),
+        );
+      }).toList();
+    } else {
+      if (response.error?.contains('No reservations found') == true) {
+        return []; // Retourner liste vide si aucune réservation
+      }
+      throw Exception(response.error ?? 'Erreur lors de la récupération des réservations');
+    }
+  } catch (e) {
+    debugPrint('Erreur getReservations: $e');
+    throw Exception('Impossible de récupérer les réservations: $e');
   }
-  
-  return [..._reservations];
+}
+ReservationStatus _mapStatusFromApi(String? apiStatus) {
+  switch (apiStatus?.toLowerCase()) {
+    case 'confirmed':
+      return ReservationStatus.confirmed;
+    case 'pending':
+      return ReservationStatus.pending;
+    case 'cancelled':
+    case 'canceled':
+      return ReservationStatus.canceled;
+    case 'completed':
+      return ReservationStatus.completed;
+    case 'late':
+      return ReservationStatus.late;
+    default:
+      return ReservationStatus.pending;
+  }
 }
 
-
-
-  Future<bool> deleteReservation(String reservationId) async {
-    
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    final initialLength = _reservations.length;
-    _reservations.removeWhere((reservation) => reservation.id == reservationId);
-    
-    final success = _reservations.length < initialLength;
-    debugPrint('Réservation supprimée: $reservationId, Succès: $success');
-    
-    return success;
-  }
-
-
 Future<bool> cancelReservation(String reservationId) async {
-  // Simuler un délai réseau
+  try {
+    final token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Utilisateur non authentifié');
+    }
+
+    final response = await _apiClient.post(
+      'reservations/$reservationId/cancel/', 
+      {},
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.success) {
+      debugPrint('Réservation annulée avec succès: $reservationId');
+      return true;
+    } else {
+      debugPrint('Erreur annulation réservation: ${response.error}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Exception lors de l\'annulation: $e');
+    return false;
+  }
+}
+
+Future<bool> deleteReservation(String reservationId) async {
+  // Pour l'instant, on garde la logique locale
+  // Vous pourrez ajouter un endpoint backend plus tard si nécessaire
   await Future.delayed(const Duration(milliseconds: 500));
   
-  final reservationIndex = _reservations.indexWhere(
-    (reservation) => reservation.id == reservationId
-  );
+  final initialLength = _reservations.length;
+  _reservations.removeWhere((reservation) => reservation.id == reservationId);
   
-  if (reservationIndex >= 0) {
-    // Vérifier si la réservation peut être annulée (confirmée ou en attente)
-    final reservation = _reservations[reservationIndex];
-    if (reservation.status == ReservationStatus.confirmed || 
-        reservation.status == ReservationStatus.pending) {
-      
-      // Créer une nouvelle réservation avec le statut 'canceled'
-      final updatedReservation = Reservation(
-        id: reservation.id,
-        userId: reservation.userId,
-        date: reservation.date,
-        timeSlot: reservation.timeSlot,
-        numberOfPeople: reservation.numberOfPeople,
-        tableNumber: reservation.tableNumber,
-        status: ReservationStatus.canceled,
-      );
-      
-      // Remplacer la réservation dans la liste
-      _reservations[reservationIndex] = updatedReservation;
-      debugPrint('Réservation annulée: $reservationId');
-      return true;
-    }
-  }
+  final success = _reservations.length < initialLength;
+  debugPrint('Réservation supprimée: $reservationId, Succès: $success');
   
-  debugPrint('Échec de l\'annulation de la réservation: $reservationId');
-  return false;
+  return success;
 }
   // Vérifier si une table est disponible à une date et heure spécifique
 Future<bool> isTableAvailable(String tableNumber, DateTime date, String timeSlot) async {

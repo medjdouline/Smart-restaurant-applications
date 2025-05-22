@@ -1,4 +1,3 @@
-// lib/widgets/tables/table_list_item.dart
 import 'package:flutter/material.dart';
 import '../../data/models/table.dart';
 import '../../utils/theme.dart';
@@ -13,22 +12,42 @@ class TableListItem extends StatelessWidget {
     required this.onTap,
   });
 
-  @override
+ @override
   Widget build(BuildContext context) {
+    // Déterminer la couleur de la table en fonction de son statut
+    Color tableColor;
+    if (table.isOccupied) {
+      tableColor = AppTheme.secondaryColor; // Rouge pour occupée
+    } else if (table.isReserved) {
+      tableColor = const Color(0xFFAA2C10); // Violet pour réservée
+    } else {
+      tableColor = const Color(0xFFE19356); // Orange pour libre
+    }
+
+    // Déterminer le statut affiché
+    String tableStatus;
+    if (table.isOccupied) {
+      tableStatus = 'Occupée';
+    } else if (table.isReserved) {
+      tableStatus = 'Réservée';
+    } else {
+      tableStatus = 'Libre';
+    }
+
     return GestureDetector(
       onTap: () => onTap(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 15),
         decoration: BoxDecoration(
-          color: table.isOccupied ? AppTheme.secondaryColor : const Color(0xFFE19356),
+          color: tableColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
           child: Row(
             children: [
-              const Icon(
-                Icons.restaurant,
+              Icon(
+                table.isReserved && !table.isOccupied ? Icons.event_available : Icons.restaurant,
                 color: Colors.white,
                 size: 24,
               ),
@@ -46,7 +65,7 @@ class TableListItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    table.isOccupied ? 'Occupée' : 'Libre',
+                    tableStatus,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,

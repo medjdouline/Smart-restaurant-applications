@@ -30,9 +30,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Fixed typo (WhiteNoiseMiddleware)
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -40,20 +41,19 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'core.authentication.FirebaseAuthentication',
-        'rest_framework.authentication.SessionAuthentication',  # Optional - for browsable API
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ORIGIN_ALLOW_ALL = True
 ROOT_URLCONF = 'restaurant_system.urls'
 
 # Templates
@@ -74,13 +74,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'restaurant_system.wsgi.application'
-DATABASES = {}
 
 # Firebase Configuration
 FIREBASE_CREDENTIALS_PATH = os.path.abspath(os.getenv('FIREBASE_CREDENTIALS_PATH'))
 if not os.path.exists(FIREBASE_CREDENTIALS_PATH):
     raise FileNotFoundError(f"Firebase credentials missing at {FIREBASE_CREDENTIALS_PATH}")
-FIREBASE_API_KEY = "AIzaSyAYqym7Dcr1k_VhyP54L8mxpzT7QctiCQ8"
+
+FIREBASE_CONFIG = {
+    "apiKey": os.getenv('FIREBASE_API_KEY', "AIzaSyAh_qXAMGvuayCYU0Dany2RIgC5Z4NQg1M"),  # Now using env var
+    "authDomain": os.getenv('FIREBASE_AUTH_DOMAIN', "pferestau25.firebaseapp.com"),
+    "projectId": os.getenv('FIREBASE_PROJECT_ID', "pferestau25"),
+    "storageBucket": os.getenv('FIREBASE_STORAGE_BUCKET', "pferestau25.firebasestorage.app"),
+    "messagingSenderId": os.getenv('FIREBASE_SENDER_ID', "180090883215"),
+    "appId": os.getenv('FIREBASE_APP_ID', "1:180090883215:android:c8385ed9ed2b65934e34fa")
+}
+
 # Security
 AUTH_PASSWORD_VALIDATORS = []
 AUTHENTICATION_BACKENDS = []
@@ -92,16 +100,14 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-ALLOWED_HOSTS = ['192.168.100.13',
-                 'localhost', '127.0.0.1']
 
-FIREBASE_CONFIG = {
-    "apiKey": "AIzaSyAh_qXAMGvuayCYU0Dany2RIgC5Z4NQg1M",
-    "authDomain": "pferestau25.firebaseapp.com",
-    "projectId": "pferestau25",
-    "storageBucket": "pferestau25.firebasestorage.app",
-    "messagingSenderId": "180090883215",
-    "appId": "1:180090883215:android:c8385ed9ed2b65934e34fa"
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.dummy',  # Disables database
+    }
 }
