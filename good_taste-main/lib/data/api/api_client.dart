@@ -60,6 +60,44 @@ class ApiClient {
       );
     }
   }
+  
+  Future<ApiResponse> get(
+    String endpoint, {
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final defaultHeaders = {
+        'Content-Type': 'application/json',
+      };
+
+      final response = await _httpClient.get(
+        uri,
+        headers: {...defaultHeaders, ...?headers},
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return ApiResponse(
+          success: true,
+          data: responseData,
+        );
+      } else {
+        String errorMessage = responseData['error'] ?? 'Unknown error occurred';
+        return ApiResponse(
+          success: false,
+          error: errorMessage,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+  
 
   void dispose() {
     _httpClient.close();

@@ -97,4 +97,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ALLOWED_HOSTS = ['192.168.100.13',
                  'localhost', '127.0.0.1']
 
-
+FIREBASE_CONFIG = {
+    "apiKey": "AIzaSyAh_qXAMGvuayCYU0Dany2RIgC5Z4NQg1M",
+    "authDomain": "pferestau25.firebaseapp.com",
+    "projectId": "pferestau25",
+    "storageBucket": "pferestau25.firebasestorage.app",
+    "messagingSenderId": "180090883215",
+    "appId": "1:180090883215:android:c8385ed9ed2b65934e34fa"
+}

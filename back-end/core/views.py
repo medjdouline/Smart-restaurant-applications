@@ -313,17 +313,41 @@ def client_signup_step5(request):
         db.collection('temp_signups').document(uid).delete()
 
         # Marquer l'utilisateur comme vérifié
-        set_custom_claims(uid, {
+        auth.set_custom_user_claims(uid, {
             'role': 'client',
             'signup_complete': True
         })
 
-        # Token de connexion
+        # Générer un ID token directement
+        # Note: Cette partie nécessite une petite astuce car Firebase Admin ne fournit pas directement cette fonctionnalité
+        # On va créer un custom token et l'utiliser pour obtenir un ID token via l'API Firebase REST
+        
+        # 1. Créer un custom token
         custom_token = auth.create_custom_token(uid)
+        
+        # 2. Échanger contre un ID token via l'API Firebase
+        import requests
+        API_KEY = "AIzaSyAYqym7Dcr1k_VhyP54L8mxpzT7QctiCQ8"  # À récupérer dans les paramètres du projet Firebase
+        
+        response = requests.post(
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={API_KEY}",
+            json={
+                'token': custom_token.decode('utf-8'),
+                'returnSecureToken': True
+            }
+        )
+        
+        if response.status_code != 200:
+            raise Exception("Failed to get ID token")
+            
+        id_token = response.json().get('idToken')
+        refresh_token = response.json().get('refreshToken')
 
         return Response({
             'message': 'Account created successfully',
-            'custom_token': custom_token.decode('utf-8')
+            'id_token': id_token,
+            'refresh_token': refresh_token,
+            'uid': uid
         }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
@@ -336,58 +360,138 @@ def client_signup_step5(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def client_login(request):
+    import traceback
+    import sys
+    
     try:
+        # Log toutes les données reçues (sanitize les mots de passe dans un environnement réel)
+        print("Received data:", request.data)
+        
         identifier = request.data.get('identifier')
         password = request.data.get('password')
 
         if not identifier or not password:
             return Response(
-                {'error': 'Identifier and password required'},
+                {'success': False, 'error': 'Identifier and password required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+        # Log avant les opérations Firebase
+        print("Starting Firebase operations")
+            
+        # Test basique de connexion à Firebase
+        try:
+            # Test si db est initialisé
+            print("Testing Firestore connection")
+            clients_ref = db.collection('clients').limit(1).stream()
+            print("Firestore connection successful")
+            
+            # Test si auth est initialisé
+            print("Testing Firebase Auth connection")
+            list_users = auth.list_users(max_results=1)
+            print("Firebase Auth connection successful")
+        except Exception as conn_error:
+            print(f"Firebase connection test failed: {str(conn_error)}")
+            traceback.print_exc(file=sys.stdout)
+            return Response(
+                {'success': False, 'error': f'Firebase connection error: {str(conn_error)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
+        print("Attempting to find user")
         # Find user by email or username
+        user = None
         if '@' in identifier:
-            user = auth.get_user_by_email(identifier)
+            try:
+                user = auth.get_user_by_email(identifier)
+                print(f"Found user by email: {user.uid}")
+            except auth.UserNotFoundError:
+                print("User not found by email")
+                pass
         else:
-            clients = db.collection('clients').where('username', '==', identifier).limit(1).stream()
-            client = next(clients, None)
-            if not client:
-                return Response(
-                    {'error': 'User not found'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            user = auth.get_user(client.id)
+            print("Looking up user by username in Firestore")
+            clients_ref = db.collection('clients')
+            query = clients_ref.where('username', '==', identifier).limit(1)
+            docs = query.stream()
+            try:
+                doc = next(docs)
+                print(f"Found user document with ID: {doc.id}")
+                user = auth.get_user(doc.id)
+                print(f"Found user in Auth: {user.uid}")
+            except StopIteration:
+                print("User not found by username")
+                pass
+            except Exception as lookup_error:
+                print(f"Error looking up user: {str(lookup_error)}")
+                traceback.print_exc(file=sys.stdout)
 
-        # Verify account is fully set up
-        claims = user.custom_claims or {}
+        if not user:
+            return Response(
+                {'success': False, 'error': 'Invalid credentials'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Check signup completion
+        print("Checking user claims")
+        claims = auth.get_user(user.uid).custom_claims or {}
         if not claims.get('signup_complete'):
             return Response(
-                {'error': 'Complete your signup process first'},
+                {'success': False, 'error': 'Complete signup first'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Generate login token
-        custom_token = auth.create_custom_token(user.uid)
+        # Authentification directe avec Firebase Auth REST API pour obtenir un ID token
+        print("Authenticating with Firebase REST API")
+        import requests
+        
+        try:
+            # Utiliser l'API REST Firebase Auth pour obtenir directement un ID token
+            API_KEY = "AIzaSyAYqym7Dcr1k_VhyP54L8mxpzT7QctiCQ8"  # À récupérer dans les paramètres du projet Firebase
+            
+            response = requests.post(
+                f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}",
+                json={
+                    "email": user.email,
+                    "password": password,
+                    "returnSecureToken": True
+                }
+            )
+            
+            print(f"Firebase Auth API response: {response.status_code}")
+            if response.status_code != 200:
+                print(f"Auth response error: {response.text}")
+                return Response(
+                    {'success': False, 'error': 'Invalid credentials'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+                
+            # Récupérer l'ID token et le refresh token de la réponse
+            auth_data = response.json()
+            id_token = auth_data.get('idToken')
+            refresh_token = auth_data.get('refreshToken')
+                
+        except Exception as auth_error:
+            print(f"Authentication error: {str(auth_error)}")
+            traceback.print_exc(file=sys.stdout)
+            return Response(
+                {'success': False, 'error': f'Authentication error: {str(auth_error)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response({
-            'uid': user.uid,
-            'custom_token': custom_token.decode('utf-8'),
-            'is_guest': False
+            'success': True,
+            'id_token': id_token,
+            'refresh_token': refresh_token,
+            'uid': user.uid
         })
 
-    except auth.UserNotFoundError:
-        return Response(
-            {'error': 'User not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
     except Exception as e:
-        logger.error(f"Login failed: {str(e)}")
+        print(f"Unexpected error in client_login: {str(e)}")
+        traceback.print_exc(file=sys.stdout)
         return Response(
-            {'error': 'Login failed'},
-            status=status.HTTP_401_UNAUTHORIZED
+            {'success': False, 'error': f'Login failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
 
 
 import uuid

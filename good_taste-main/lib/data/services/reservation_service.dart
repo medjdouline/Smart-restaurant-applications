@@ -5,12 +5,116 @@ import 'package:good_taste/data/models/reservation.dart';
 import 'package:good_taste/data/models/user.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:good_taste/data/services/table_service.dart';
+import 'package:flutter/material.dart';
+import 'package:good_taste/data/models/reservation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:good_taste/data/api/api_client.dart';
+import 'package:good_taste/data/repositories/auth_repository.dart';
+import 'package:good_taste/data/models/user.dart';
 
 class ReservationService {
-  // Singleton pattern
-  static final ReservationService _instance = ReservationService._internal();
-  factory ReservationService() => _instance;
-  ReservationService._internal();
+  final ApiClient _apiClient;
+  final AuthRepository _authRepo;
+
+  ReservationService({
+    required ApiClient apiClient,
+    required AuthRepository authRepo, // Ajouté
+  }) : _apiClient = apiClient, _authRepo = authRepo;
+
+
+  Future<Reservation> addReservation({
+  required String userId,
+  required DateTime date,
+  required String timeSlot,
+  required int numberOfPeople,
+  required String tableNumber, // Doit être un numéro ("1", "2", etc.)
+}) async {
+  try {
+    // 1. Validation des données
+    if (numberOfPeople <= 0 || numberOfPeople > 8) {
+      throw Exception('Le nombre de personnes doit être entre 1 et 8');
+    }
+
+    if (!RegExp(r'^\d+h-\d+h$').hasMatch(timeSlot)) {
+      throw Exception('Format de créneau horaire invalide (ex: 18h-20h)');
+    }
+
+    // 2. Formatage des données
+    final dateStr = "${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
+    final startTime = '${timeSlot.split('h')[0]}:00'; // "18h-20h" → "18:00"
+    final firestoreTableId = 'table$tableNumber'; // "3" → "table3"
+
+    // 3. Récupération du token
+    final token = await _getAuthToken(); 
+    if (token == null || token.isEmpty) {
+      throw Exception('Utilisateur non authentifié');
+    }
+
+    // 4. Appel API
+    final response = await _apiClient.post(
+      'client-mobile/reservations/create/', // URL corrigée
+      {
+        'date': dateStr,
+        'time': startTime,
+        'party_size': numberOfPeople,
+        'table_id': firestoreTableId, // Envoie l'ID complet "table3"
+      },
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    // 5. Gestion de la réponse
+    if (response.success) {
+      return Reservation(
+        id: response.data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        userId: userId,
+        date: date,
+        timeSlot: timeSlot,
+        numberOfPeople: numberOfPeople,
+        tableNumber: tableNumber, // Garde le numéro simple côté Flutter
+        status: ReservationStatus.confirmed,
+      );
+    } else {
+      // Gestion des erreurs spécifiques du backend
+      final errorMsg = response.error ?? 'Erreur inconnue';
+      if (errorMsg.contains('Table not found')) {
+        throw Exception('Table $tableNumber non trouvée');
+      } else if (errorMsg.contains('insufficient capacity')) {
+        throw Exception('La table $tableNumber ne peut pas accueillir $numberOfPeople personnes');
+      } else {
+        throw Exception(errorMsg);
+      }
+    }
+  } catch (e) {
+    debugPrint('Erreur de réservation - ${e.toString()}');
+    rethrow; // Important pour que le bloc puisse catcher l'erreur
+  }
+} 
+
+  Future<bool> hasActiveReservation(String userId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) throw Exception('Not authenticated');
+
+      final response = await _apiClient.post(
+        'client-mobile/reservations/',
+        {},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      return response.success && (response.data['has_active'] ?? false);
+    } catch (e) {
+      debugPrint('Error checking active reservation: $e');
+      return false;
+    }
+  }
+
+Future<String?> _getAuthToken() async {
+  return _authRepo.getAuthToken(); // Use the AuthRepository method instead
+}
+
 
   // Liste de réservations en mémoire (simulée)
   final List<Reservation> _reservations = [];
@@ -50,46 +154,8 @@ class ReservationService {
 
   // Ajouter une nouvelle réservation
   // Ajouter une nouvelle réservation
-Future<Reservation> addReservation({
-  required String userId,
-  required DateTime date,
-  required String timeSlot,
-  required int numberOfPeople,
-  String tableNumber = '5', // Valeur par défaut simulée
-}) async {
-  // Simuler un délai réseau
-  await Future.delayed(const Duration(seconds: 1));
-  
-  final newReservation = Reservation(
-    id: _generateUniqueId(),
-    userId: userId, // Ajout de l'ID utilisateur
-    date: date,
-    timeSlot: timeSlot,
-    numberOfPeople: numberOfPeople,
-    tableNumber: tableNumber,
-    status: ReservationStatus.pending, // Statut 'en attente' par défaut
-  );
-  
-  _reservations.add(newReservation);
-  debugPrint('Nouvelle réservation ajoutée: ${newReservation.id} pour utilisateur: $userId');
-  
-  return newReservation;
-}
 
-Future<bool> hasActiveReservation(String userId) async {
-  // Simuler un délai réseau
-  await Future.delayed(const Duration(milliseconds: 500));
-  
- 
-  bool hasActive = _reservations.any((reservation) => 
-    (reservation.userId ?? '') == userId && 
-    (reservation.status == ReservationStatus.confirmed || 
-     reservation.status == ReservationStatus.pending)
-  );
-  
-  debugPrint('L\'utilisateur $userId a une réservation active: $hasActive');
-  return hasActive;
-}
+
 
 // Récupérer toutes les réservations
 Future<List<Reservation>> getReservations(User user) async {

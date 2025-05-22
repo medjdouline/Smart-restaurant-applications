@@ -3,8 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:good_taste/data/models/reservation.dart';
 import 'package:good_taste/data/services/reservation_service.dart';
 
+import 'package:good_taste/di/di.dart';
+
 class ReservationRepository {
-  final ReservationService _service = ReservationService();
+  final ReservationService _service;
+
+  ReservationRepository() : _service = DependencyInjection.getReservationService();
+
   
   List<String> getAvailableTimeSlots({DateTime? selectedDate}) {
     final DateTime now = DateTime.now();
@@ -41,30 +46,31 @@ class ReservationRepository {
     return startHour <= now.hour;
   }
 
-  // Ajouter une méthode pour vérifier si un utilisateur a déjà une réservation active
-  Future<bool> hasActiveReservation(String userId) async {
-    return _service.hasActiveReservation(userId);
-  }
 
-  Future<Reservation> makeReservation({
+
+ Future<Reservation> makeReservation({
     required String userId,
     required DateTime date,
     required String timeSlot,
     required int numberOfPeople,
     required String tableType,
   }) async {
-    // Utiliser le service pour ajouter la réservation
-    final newReservation = await _service.addReservation(
-      userId: userId,
-      date: date,
-      timeSlot: timeSlot,
-      numberOfPeople: numberOfPeople,
-      tableNumber: tableType.isEmpty ? 'Standard' : tableType,
-    );
-    
-    debugPrint('Réservation effectuée: $date, $timeSlot, $numberOfPeople personnes, table: $tableType');
-    
-    return newReservation;
+    try {
+      return await _service.addReservation(
+        userId: userId,
+        date: date,
+        timeSlot: timeSlot,
+        numberOfPeople: numberOfPeople,
+        tableNumber: tableType,
+      );
+    } catch (e) {
+      debugPrint('Reservation failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> hasActiveReservation(String userId) async {
+    return await _service.hasActiveReservation(userId);
   }
 
  // Vérifier si une table est disponible

@@ -370,6 +370,17 @@ def get_reservation_details(request, reservation_id):
 @api_view(['POST'])
 @permission_classes([IsClient])
 def create_reservation(request):
+    print("=== DONNEES RECUES ===")
+    print("Table ID:", request.data.get('table_id'))  # Doit afficher "table1", "table2", etc.
+    
+    table_id = request.data.get('table_id')
+    table = firebase_crud.get_doc('tables', table_id)
+    
+    if not table:
+        print(f"ERREUR: Table {table_id} non trouvée dans Firestore")
+        return Response({'error': 'Table not found'}, status=404)
+    else:
+        print(f"Table trouvée: {table}")
     """Create a new table reservation"""
     try:
         client_id = request.user.uid
@@ -407,11 +418,14 @@ def create_reservation(request):
             'table_id': table_id,
             'date_time': date_time,
             'party_size': party_size,
-            'status': 'confirmed',
+            'status': 'en_attente',
             'created_at': firestore.SERVER_TIMESTAMP
         }
         
         reservation_id = firebase_crud.create_doc('reservations', reservation_data)
+        
+        # Update table status to 'reservee'
+        firebase_crud.update_doc('tables', table_id, {'etatTable': 'reservee'})
         
         return Response({
             'id': reservation_id,

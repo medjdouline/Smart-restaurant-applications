@@ -7,6 +7,7 @@ import 'package:good_taste/data/models/preferences_model.dart';
 import 'package:good_taste/data/api/auth_api_service.dart';
 import 'package:good_taste/data/api/api_client.dart';
 import 'package:logging/logging.dart';
+import 'package:good_taste/di/di.dart'; 
 
 class PreferenceBloc extends Bloc<PreferenceEvent, PreferenceState> {
   final PreferencesRepository _preferencesRepository;
@@ -16,13 +17,8 @@ class PreferenceBloc extends Bloc<PreferenceEvent, PreferenceState> {
   PreferenceBloc({
     PreferencesRepository? preferencesRepository,
     AuthRepository? authRepository,
-    AuthApiService? authApiService,
-  }) : _preferencesRepository = preferencesRepository ?? PreferencesRepository(),
-       _authRepository = authRepository ?? AuthRepository(
-         authApiService: authApiService ?? AuthApiService(
-           apiClient: ApiClient(baseUrl: 'https://api.your-domain.com/'), // Replace with your actual base URL
-         ),
-       ),
+  }) : _preferencesRepository = preferencesRepository ?? DependencyInjection.getPreferencesRepository(),
+       _authRepository = authRepository ?? DependencyInjection.getAuthRepository(),
        super(const PreferenceState()) {
     on<PreferenceToggled>(_onPreferenceToggled);
     on<PreferenceSubmitted>(_onPreferenceSubmitted);

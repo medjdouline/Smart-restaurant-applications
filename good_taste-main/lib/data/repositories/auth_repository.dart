@@ -5,18 +5,21 @@ import 'package:good_taste/data/models/preferences_model.dart';
 import 'package:good_taste/data/api/api_client.dart';
 import 'package:logging/logging.dart';
 import 'package:good_taste/data/api/auth_api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 class AuthRepository {
   final Logger _logger = Logger('AuthRepository');
   final AuthApiService _authApiService;
-  
+  final SharedPreferences _prefs; // Ajouté
   final _userController = StreamController<User>.broadcast();
   User _currentUser = User.empty;
   String? _currentUid;
   
-  AuthRepository({required AuthApiService authApiService}) 
-    : _authApiService = authApiService {
+   AuthRepository({
+    required AuthApiService authApiService,
+    required SharedPreferences prefs, // Ajouté
+  }) : _authApiService = authApiService, _prefs = prefs {
     _userController.add(_currentUser);
   }
 
@@ -111,32 +114,33 @@ Future<String> signUp({
     return;
   }
   
-  Future<void> logIn({
+// Replace the existing logIn method with this new implementation
+Future<void> logIn({
     required String email,
     required String password,
   }) async {
-    
-    if (email == "admin@example.com") {
-      _currentUser = User(
-        id: 'admin-id',
-        email: email,
-        name: 'Admin',
-        profileImage: 'assets/images/admin_avatar.png',
-        phoneNumber: '0600000000',
-        gender: 'Homme',
-        dateOfBirth: DateTime(1985, 5, 15),
-        allergies: const AllergiesModel(),
-        regimes: const RegimeModel(),
-        preferences: const PreferencesModel(),
+    try {
+      final response = await _authApiService.clientLogin(
+        identifier: email,
+        password: password,
       );
-    } else {
-    
+
+      if (!response.success) {
+        throw Exception(response.error ?? 'Login failed');
+      }
+
+      // Stockage du token
+      await _prefs.setString('auth_token', response.data['id_token']);
+      _logger.info("Token stored successfully");
+
+      // Récupération des données utilisateur
+      final uid = response.data['uid'];
       String username = email.split('@')[0];
       
       _currentUser = User(
-        id: 'user-${DateTime.now().millisecondsSinceEpoch}',
+        id: uid,
         email: email,
-        name: username, 
+        name: username,
         profileImage: 'assets/images/profile_avatar.png',
         phoneNumber: '0610101010',
         gender: 'Homme',
@@ -145,18 +149,36 @@ Future<String> signUp({
         regimes: const RegimeModel(),
         preferences: const PreferencesModel(),
       );
+
+      _userController.add(_currentUser);
+      _logger.info("User logged in with email: $email");
+
+    } catch (e) {
+    _logger.severe("Login failed: $e");
+    // Parse the error to provide a more user-friendly message
+    if (e.toString().contains('Invalid credentials')) {
+      throw Exception('Email ou mot de passe incorrect.');
+    } else if (e.toString().contains('Complete signup first')) {
+      throw Exception('Veuillez compléter votre inscription.');
+    } else if (e.toString().contains('Firebase connection error')) {
+      throw Exception('Erreur de connexion au serveur.');
     }
-    _userController.add(_currentUser);
-    _logger.info("Utilisateur simulé connecté avec email: $email");
-    return Future.delayed(Duration(seconds: 1)); 
+    throw Exception('Échec de la connexion: ${e.toString()}');
   }
+}
   
   Future<void> logOut() async {
+    await _prefs.remove('auth_token'); // Nettoyage du token
     _currentUser = User.empty;
     _userController.add(_currentUser);
-    _logger.info("Utilisateur simulé déconnecté");
-    return Future.delayed(Duration(seconds: 1)); 
+    _logger.info("User logged out");
   }
+
+  // Ajout d'une méthode pour récupérer le token
+  String? getAuthToken() {
+    return _prefs.getString('auth_token');
+  }
+
   
   bool isValidAge(DateTime dateOfBirth) {
     final today = DateTime.now();

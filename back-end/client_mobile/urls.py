@@ -27,7 +27,7 @@ urlpatterns = [
     path('favorites/remove/<str:plat_id>/', views.remove_favorite, name='remove_favorite'),
     
     # Reservations endpoints
-    path('reservations/', views.get_reservations, name='get_reservations'),
+    path('client-mobile/reservations/', views.get_reservations, name='get_reservations'),
     path('reservations/create/', views.create_reservation, name='create_reservation'),
     path('reservations/<str:reservation_id>/', views.get_reservation_details, name='get_reservation_details'),
     path('reservations/<str:reservation_id>/cancel/', views.cancel_reservation, name='cancel_reservation'),

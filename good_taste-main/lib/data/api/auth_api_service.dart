@@ -77,4 +77,18 @@ Future<ApiResponse> signUpStep5({
     },
   );
 }
+
+// Add this method to the AuthApiService class
+Future<ApiResponse> clientLogin({
+  required String identifier,
+  required String password,
+}) async {
+  return await _apiClient.post(
+    'auth/client/login/',
+    {
+      'identifier': identifier,
+      'password': password,
+    },
+  );
+}
 }

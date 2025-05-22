@@ -3,10 +3,17 @@ import 'package:good_taste/data/models/reservation.dart';
 import 'package:good_taste/data/models/user.dart';
 import 'package:good_taste/data/services/reservation_service.dart';
 import 'package:good_taste/data/repositories/notification_repository.dart';
+import 'package:good_taste/di/di.dart';
+import 'package:good_taste/data/models/notification_model.dart';
 
 class ReservationHistoryRepository {
-  final ReservationService _service = ReservationService();
-  final NotificationRepository _notificationRepository = NotificationRepository();
+  final ReservationService _service;
+  final NotificationRepository _notificationRepository;
+  
+  ReservationHistoryRepository() 
+    : _service = DependencyInjection.getReservationService(),
+      _notificationRepository = NotificationRepository();
+
   
   // Garder une trace des notifications déjà créées pour éviter les doublons
   final Set<String> _lateNotificationsSent = {};

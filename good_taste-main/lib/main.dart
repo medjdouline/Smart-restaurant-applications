@@ -53,7 +53,7 @@ void main() async {
   final logger = Logger('main');
   logger.info('Starting app...');
   logger.info('API base URL: ${DependencyInjection.apiBaseUrl}');
-  
+  await DependencyInjection.init();
   await Firebase.initializeApp();
   runApp(MyApp());
 }
