@@ -314,7 +314,24 @@ String _mapStatusToBackend(String frontendStatus) {
       throw Exception('Failed to fetch ready orders: ${e.toString()}');
     }
   }
-
+@override
+Future<Order> getOrderDetails(String orderId) async {
+  try {
+    print('[DEBUG] Fetching detailed order: $orderId');
+    final dynamic data = await _apiClient.get('/orders/$orderId/');
+    
+    if (data is Map<String, dynamic>) {
+      // Transform the detailed response to match our Order model
+      final orderMap = _transformResponseToOrderMap(data);
+      return Order.fromJson(orderMap);
+    }
+    
+    throw Exception('Invalid order details format');
+  } catch (e) {
+    print('[ERROR] Failed to fetch order details: $e');
+    throw Exception('Failed to fetch order details: ${e.toString()}');
+  }
+}
   @override
   Future<List<Order>> getServedOrders() async {
     try {

@@ -18,6 +18,26 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     on<ConfirmOrderServed>(_onConfirmOrderServed);
   }
 
+
+Future<void> _onLoadOrderDetails(
+  LoadOrderDetails event,
+  Emitter<OrderState> emit,
+) async {
+  emit(state.copyWith(status: OrderStatus.loading));
+  
+  try {
+    final orderDetails = await orderRepository.getOrderDetails(event.orderId);
+    emit(state.copyWith(
+      status: OrderStatus.detailLoaded,
+      currentOrderDetails: orderDetails,
+    ));
+  } catch (e) {
+    emit(state.copyWith(
+      status: OrderStatus.error,
+      errorMessage: 'Failed to load order details: ${e.toString()}',
+    ));
+  }
+}
 Future<void> _onLoadOrders(
   LoadOrders event,
   Emitter<OrderState> emit,
@@ -161,6 +181,7 @@ Future<void> _onLoadOrders(
       ));
     }
   }
+  
 
 // Replace the existing _onRequestCancelOrder method with this one
 Future<void> _onRequestCancelOrder(

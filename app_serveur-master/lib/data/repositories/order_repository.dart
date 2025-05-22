@@ -19,4 +19,5 @@ abstract class OrderRepository {
   Future<void> directCancelOrder(String orderId);
   Future<List<AssistanceRequest>> getAssistanceRequests();
   Future<void> completeAssistanceRequest(String requestId);
+  Future<Order> getOrderDetails(String orderId);
 }

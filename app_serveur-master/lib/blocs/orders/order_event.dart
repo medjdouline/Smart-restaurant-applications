@@ -12,7 +12,10 @@ class CompleteOrder extends OrderEvent {
   final String orderId;
   CompleteOrder({required this.orderId});
 }
-
+class LoadOrderDetails extends OrderEvent {
+  final String orderId;
+  LoadOrderDetails({required this.orderId});
+}
 class CancelOrder extends OrderEvent {
   final String orderId;
   final String currentStatus;

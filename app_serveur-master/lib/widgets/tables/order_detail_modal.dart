@@ -1,4 +1,5 @@
 // lib/widgets/tables/order_detail_modal.dart
+import 'package:app_serveur/utils/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/order.dart';
@@ -10,236 +11,205 @@ class OrderDetailModal extends StatelessWidget {
   const OrderDetailModal({
     super.key,
     required this.order,
-  }) ;
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Calculate total price
     final totalPrice = order.items.fold(
-        0.0, (sum, item) => sum + (item.price * item.quantity));
-    
-    // Format date
-    final dateFormat = DateFormat('EEEE, dd MMMM yyyy');
+      0.0, 
+      (sum, item) => sum + (item.price * (item.quantity ?? 1))
+    );
+
+    // Format dates
+    final dateFormat = DateFormat('EEEE, dd MMMM yyyy', 'fr_FR');
     final timeFormat = DateFormat('HH:mm');
     final formattedDate = dateFormat.format(order.createdAt);
     final formattedTime = timeFormat.format(order.createdAt);
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.userId,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      Text(
-                        order.tableId,
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(order.status),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Text(
-                  _getStatusText(order.status),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 17),
-          
-          // Date et heure
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  formattedDate,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ),
-              Text(
-                formattedTime,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 17),
-          
-          
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with table info
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  flex: 2,
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: AppTheme.accentColor,
+                      child: Icon(Icons.table_restaurant, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Table ${order.getActualTableNumber()}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          '${order.items.length} Éléments',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                // Status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(order.status),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Text(
-                    'Éléments',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'Qté',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      'Prix',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[600],
-                      ),
+                    _getStatusText(order.status),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-          
-          // Liste des éléments
-          Column(
-            children: order.items.map((item) {
+            
+            const SizedBox(height: 20),
+            
+            // Date and time
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  formattedDate,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                Text(
+                  formattedTime,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            const Divider(),
+            
+            // Items list header
+            const Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Éléments',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'Qté',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'Prix',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+            
+            // Items list
+            ...order.items.map((item) {
+              final orderItem = item is OrderItem ? item : OrderItem.fromJson(item as Map<String, dynamic>);
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
-                      flex: 2,
+                      flex: 3,
+                      child: Text(orderItem.name),
+                    ),
+                    Expanded(
+                      flex: 1,
                       child: Text(
-                        item.name,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        '${orderItem.quantity}',
+                        textAlign: TextAlign.center,
                       ),
                     ),
                     Expanded(
-                      child: Center(
-                        child: Text(
-                          '${item.quantity}',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          '${item.price.toStringAsFixed(2)} €',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                      flex: 1,
+                      child: Text(
+                        '${orderItem.price.toStringAsFixed(2)} €',
+                        textAlign: TextAlign.right,
                       ),
                     ),
                   ],
                 ),
               );
             }).toList(),
-          ),
-          
-          const SizedBox(height: 30),
-          
-          // Ligne de séparation
-          const Divider(height: 1, thickness: 1),
-          
-          // Total
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+            
+            const Divider(),
+            
+            // Total
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-                Text(
-                  '${totalPrice.toStringAsFixed(2)} €',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                  Text(
+                    '${totalPrice.toStringAsFixed(2)} €',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          
-          
-        ],
+            
+            // Notes if available
+            if (order.notes != null && order.notes!.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Notes:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  Text(order.notes!),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

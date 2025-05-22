@@ -8,6 +8,7 @@ enum OrderStatus {
   served,
   cancelRequested,
   cancelled,
+  detailLoaded,
   
 }
 
@@ -21,6 +22,7 @@ class OrderState {
   final String currentFilter;
   final String? errorMessage;
   final String? infoMessage;
+  final Order? currentOrderDetails;
 
   OrderState({
     this.status = OrderStatus.initial,
@@ -32,6 +34,7 @@ class OrderState {
     this.currentFilter = 'Tous',
     this.errorMessage,
     this.infoMessage,
+    this.currentOrderDetails,
   });
 
   OrderState copyWith({
@@ -43,6 +46,7 @@ class OrderState {
     List<Order>? filteredOrders,
     String? currentFilter,
     String? errorMessage,
+    Order? currentOrderDetails,
     String? infoMessage,
   }) {
     return OrderState(
@@ -55,6 +59,7 @@ class OrderState {
       currentFilter: currentFilter ?? this.currentFilter,
       errorMessage: errorMessage ?? this.errorMessage,
       infoMessage: infoMessage ?? this.infoMessage,
+      currentOrderDetails: currentOrderDetails ?? this.currentOrderDetails,
     );
   }
 }

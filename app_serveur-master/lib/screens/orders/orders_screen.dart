@@ -393,6 +393,7 @@ Widget _buildOrderCard(Order order, String currentFilter) {
   
 
 void _showOrderDetailsModal(BuildContext context, Order order) {
+    context.read<OrderBloc>().add(LoadOrderDetails(orderId: order.id));
   // Utiliser la méthode getActualTableNumber du modèle Order
   String tableNumber = order.getActualTableNumber();
   
