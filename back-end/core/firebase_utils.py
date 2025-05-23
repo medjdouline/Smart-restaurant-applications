@@ -6,6 +6,7 @@ import logging
 
 # Load environment variables from .env file
 load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 class FirebaseConfig:
@@ -17,23 +18,14 @@ class FirebaseConfig:
     def __new__(cls):
         if not cls._instance:
             cls._instance = super(FirebaseConfig, cls).__new__(cls)
+            cls._initialize_firebase()
         return cls._instance
 
     @classmethod
-    def _initialize_firebase(cls, force_reinit=False):
-        """Initialize Firebase connection with force reinit option"""
+    def _initialize_firebase(cls):
+        """Initialize Firebase connection"""
         try:
-            # Force cleanup if reinitializing
-            if force_reinit and firebase_admin._apps:
-                # Convert to list to avoid "dictionary changed size during iteration"
-                apps_to_delete = list(firebase_admin._apps.values())
-                for app in apps_to_delete:
-                    firebase_admin.delete_app(app)
-                cls._app = None
-                cls._db = None
-                cls._auth = None
-            
-            if not firebase_admin._apps or force_reinit:
+            if not firebase_admin._apps:
                 cred_path = os.getenv('FIREBASE_CREDENTIALS_PATH')
                 
                 if not cred_path:
@@ -47,30 +39,24 @@ class FirebaseConfig:
                 cls._db = firestore.client()
                 cls._auth = auth
             
-            logger.info(f"Firebase initialized successfully with key: {os.path.basename(cred_path)}")
+            logger.info("Firebase initialized successfully")
         
         except Exception as e:
             logger.error(f"Firebase initialization failed: {str(e)}")
             raise RuntimeError(f"Firebase initialization failed: {str(e)}")
 
     @classmethod
-    def reinitialize(cls):
-        """Force reinitialize Firebase - call this after changing service account key"""
-        cls._initialize_firebase(force_reinit=True)
-        return cls._instance
-
-    @classmethod
     def get_db(cls):
         """Get Firestore database client"""
         if not cls._db:
-            cls._initialize_firebase()
+            raise ConnectionError("Firestore not initialized")
         return cls._db
 
     @classmethod
     def get_auth(cls):
         """Get Firebase Auth instance"""
         if not cls._app:
-            cls._initialize_firebase()
+            raise ConnectionError("Firebase not initialized")
         return cls._auth
 
     @classmethod
@@ -105,6 +91,5 @@ class FirebaseConfig:
             logger.error(f"Token verification failed: {str(e)}")
             raise AuthenticationFailed('Token verification failed')
 
-# Initialize immediately
+# Singleton instance
 firebase_config = FirebaseConfig()
-firebase_config._initialize_firebase()
