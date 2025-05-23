@@ -1,7 +1,15 @@
 # Secrets
+*.json
+.env
 
 # Virtual environment
 venv/
 
+# Firebase keys
+*firebase*.json
+*adminsdk*.json
 
-"back-end/pferestau25-firebase-adminsdk-fbsvc-2af8ebc54e.json" 
+# Django
+__pycache__/
+*.pyc
+db.sqlite3
