@@ -16,6 +16,7 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     on<CancelOrder>(_onCancelOrder);
     on<RequestCancelOrder>(_onRequestCancelOrder);
     on<ConfirmOrderServed>(_onConfirmOrderServed);
+    on<LoadOrderDetails>(_onLoadOrderDetails);
   }
 
 
@@ -30,6 +31,7 @@ Future<void> _onLoadOrderDetails(
     emit(state.copyWith(
       status: OrderStatus.detailLoaded,
       currentOrderDetails: orderDetails,
+      errorMessage: null, // Réinitialisez les messages d'erreur
     ));
   } catch (e) {
     emit(state.copyWith(

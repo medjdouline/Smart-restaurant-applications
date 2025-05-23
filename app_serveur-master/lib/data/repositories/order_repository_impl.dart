@@ -317,12 +317,14 @@ String _mapStatusToBackend(String frontendStatus) {
 @override
 Future<Order> getOrderDetails(String orderId) async {
   try {
-    print('[DEBUG] Fetching detailed order: $orderId');
+    print('[DEBUG] Fetching order details for ID: $orderId');
     final dynamic data = await _apiClient.get('/orders/$orderId/');
+    print('[DEBUG] Received data: $data');
     
     if (data is Map<String, dynamic>) {
-      // Transform the detailed response to match our Order model
+      print('[DEBUG] Transforming response to order map');
       final orderMap = _transformResponseToOrderMap(data);
+      print('[DEBUG] Order map: $orderMap');
       return Order.fromJson(orderMap);
     }
     

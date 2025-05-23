@@ -347,22 +347,32 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  void _showOrderDetailsModal(BuildContext context, Order order) {
-    context.read<OrderBloc>().add(LoadOrderDetails(orderId: order.id));
+void _showOrderDetailsModal(BuildContext context, Order order) {
+  // Charge d'abord les détails
+  context.read<OrderBloc>().add(LoadOrderDetails(orderId: order.id));
+  
     
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return BlocBuilder<OrderBloc, OrderState>(
-          builder: (context, state) {
-            final detailedOrder = state.currentOrderDetails ?? order;
-            return _OrderDetailsContent(order: detailedOrder);
-          },
-        );
-      },
-    );
-  }
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return BlocBuilder<OrderBloc, OrderState>(
+        builder: (context, state) {
+          if (state.status == OrderStatus.loading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (state.status == OrderStatus.error) {
+            return Center(child: Text(state.errorMessage ?? 'Error loading details'));
+          }
+          
+          final detailedOrder = state.currentOrderDetails ?? order;
+          return _OrderDetailsContent(order: detailedOrder);
+        },
+      );
+    },
+  );
+}
 
   void _navigateToScreen(BuildContext context, int index) {
     if (index == _currentIndex) return;
