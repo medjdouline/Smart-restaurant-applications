@@ -98,7 +98,7 @@ ALLOWED_HOSTS = ['192.168.100.13',
                  'localhost', '127.0.0.1']
 
 FIREBASE_CONFIG = {
-    "apiKey": "AIzaSyAh_qXAMGvuayCYU0Dany2RIgC5Z4NQg1M",
+    "apiKey": "AIzaSyAYqym7Dcr1k_VhyP54L8mxpzT7QctiCQ8",
     "authDomain": "pferestau25.firebaseapp.com",
     "projectId": "pferestau25",
     "storageBucket": "pferestau25.firebasestorage.app",

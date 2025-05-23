@@ -40,7 +40,8 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
             return None
             
         try:
-            decoded = auth.verify_id_token(token)
+            auth_instance = firebase_config.get_auth()
+            decoded = auth_instance.verify_id_token(token)
             user = auth.get_user(decoded['uid'])
             
             return (
