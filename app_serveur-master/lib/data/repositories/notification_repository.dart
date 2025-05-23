@@ -16,7 +16,7 @@ class NotificationRepository {
       _logger.d('Fetching notifications for server');
       
       // Appel à l'API REST avec le chemin correct
-      final response = await _apiClient.getWithRetry('/server/notifications/', maxRetries: 2);
+      final response = await _apiClient.getWithRetry('/api/server/notifications/', maxRetries: 2);
       
       if (response == null) {
         _logger.w('Null response from notifications API');

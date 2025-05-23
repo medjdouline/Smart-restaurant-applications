@@ -1,7 +1,3 @@
-// lib/screens/orders/orders_screen.dart (with fixes)
-// ignore_for_file: unnecessary_type_check, unnecessary_cast
-
-import 'package:app_serveur/data/repositories/order_repository_impl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -20,12 +16,11 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  int _currentIndex = 1; // Index pour la barre de navigation (commandes)
+  int _currentIndex = 1;
 
   @override
   void initState() {
     super.initState();
-    // Charger les commandes au démarrage
     context.read<OrderBloc>().add(LoadOrders());
   }
 
@@ -33,55 +28,53 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.primaryColor,
-      body: // In the build method of OrdersScreen, replace the BlocConsumer with this:
-BlocConsumer<OrderBloc, OrderState>(
-  listener: (context, state) {
-    if (state.status == OrderStatus.error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.errorMessage ?? 'Une erreur est survenue'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    if (state.status == OrderStatus.cancelRequested && state.infoMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.infoMessage!),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // Rechargement différé après 2 secondes
-      Future.delayed(const Duration(seconds: 2), () {
-        context.read<OrderBloc>().add(LoadOrders());
-      });
-    }
-  },
-  builder: (context, state) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: RefreshIndicator(
-          onRefresh: () async {
-            context.read<OrderBloc>().add(LoadOrders());
-          },
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              _buildFilters(state),
-              const SizedBox(height: 20),
-              Expanded(
-                child: state.status == OrderStatus.loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildOrdersList(state),
+      body: BlocConsumer<OrderBloc, OrderState>(
+        listener: (context, state) {
+          if (state.status == OrderStatus.error) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.errorMessage ?? 'Une erreur est survenue'),
+                backgroundColor: Colors.red,
               ),
-            ],
-          ),
-        ),
+            );
+          }
+          if (state.status == OrderStatus.cancelRequested && state.infoMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.infoMessage!),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Future.delayed(const Duration(seconds: 2), () {
+              context.read<OrderBloc>().add(LoadOrders());
+            });
+          }
+        },
+        builder: (context, state) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  context.read<OrderBloc>().add(LoadOrders());
+                },
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildFilters(state),
+                    const SizedBox(height: 20),
+                    Expanded(
+                      child: state.status == OrderStatus.loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _buildOrdersList(state),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
-    );
-  },
-),
       bottomNavigationBar: BottomNavigation(
         currentIndex: _currentIndex,
         onTap: (index) => _navigateToScreen(context, index),
@@ -89,30 +82,29 @@ BlocConsumer<OrderBloc, OrderState>(
     );
   }
 
- Widget _buildFilters(OrderState state) {
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        _buildFilterButton('Tous', state),
-        const SizedBox(width: 8),
-        _buildFilterButton('En attente', state),
-        const SizedBox(width: 8),
-        _buildFilterButton('En préparation', state),
-        const SizedBox(width: 8),
-        _buildFilterButton('Prête', state),
-        const SizedBox(width: 8),
-        _buildFilterButton('Servie', state),
-        const SizedBox(width: 8),
-        _buildFilterButton('Annulées', state),
-      ],
-    ),
-  );
-}
+  Widget _buildFilters(OrderState state) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildFilterButton('Tous', state),
+          const SizedBox(width: 8),
+          _buildFilterButton('En attente', state),
+          const SizedBox(width: 8),
+          _buildFilterButton('En préparation', state),
+          const SizedBox(width: 8),
+          _buildFilterButton('Prête', state),
+          const SizedBox(width: 8),
+          _buildFilterButton('Servie', state),
+          const SizedBox(width: 8),
+          _buildFilterButton('Annulées', state),
+        ],
+      ),
+    );
+  }
 
   Widget _buildFilterButton(String filter, OrderState state) {
     final isSelected = state.currentFilter == filter;
-
     return GestureDetector(
       onTap: () {
         context.read<OrderBloc>().add(FilterOrders(filter: filter));
@@ -143,7 +135,6 @@ BlocConsumer<OrderBloc, OrderState>(
         ),
       );
     }
-
     return ListView.builder(
       itemCount: state.filteredOrders.length,
       itemBuilder: (context, index) {
@@ -153,340 +144,70 @@ BlocConsumer<OrderBloc, OrderState>(
     );
   }
 
+  Widget _buildOrderCard(Order order, String currentFilter) {
+    bool isWaiting = order.status.toLowerCase() == 'new' || 
+                     order.status.toLowerCase() == 'pending';
+    bool isPreparing = order.status.toLowerCase() == 'preparing';
+    bool isReady = order.status.toLowerCase() == 'ready';
+    bool isServed = order.status.toLowerCase() == 'served';
+    bool isCancelled = order.status.toLowerCase() == 'cancelled';
 
-Widget _buildOrderCard(Order order, String currentFilter) {
-  // Déterminer l'état et les actions disponibles pour la commande
-  bool isWaiting = order.status.toLowerCase() == 'new' || 
-                   order.status.toLowerCase() == 'pending' || 
-                   order.status.toLowerCase() == 'en attente' || 
-                   order.status.toLowerCase() == 'en_attente';
-  bool isPreparing = order.status.toLowerCase() == 'preparing' || 
-                    order.status.toLowerCase() == 'en preparation' || 
-                    order.status.toLowerCase() == 'en_preparation';
-  bool isReady = order.status.toLowerCase() == 'ready' || 
-                order.status.toLowerCase() == 'pret' || 
-                order.status.toLowerCase() == 'prete';
-  bool isServed = order.status.toLowerCase() == 'served' || 
-                 order.status.toLowerCase() == 'servi' || 
-                 order.status.toLowerCase() == 'servie';
-  bool isCancelled = order.status.toLowerCase() == 'cancelled' || 
-                    order.status.toLowerCase() == 'annule' || 
-                    order.status.toLowerCase() == 'annulee';
+    String statusText = '';
+    Color statusColor = Colors.grey;
 
-  // Utiliser la méthode modifiée pour obtenir le numéro de table correct
-  String tableNumber = order.getActualTableNumber();
-
-  // Texte du statut à afficher
-  String statusText = '';
-  Color statusColor = Colors.grey;
-
-  switch (order.status.toLowerCase()) {
-    case 'pending':
-    case 'new':
-    case 'en_attente':
-    case 'en attente':
-      statusText = 'En attente';
-      statusColor = Colors.orange;
-      break;
-    case 'preparing':
-    case 'en preparation':
-    case 'en_preparation':
-      statusText = 'En préparation';
-      statusColor = Colors.blue;
-      break;
-    case 'ready':
-    case 'pret':
-    case 'prete':
-      statusText = 'Prête';
-      statusColor = Colors.green;
-      break;
-    case 'served':
-    case 'servi':
-    case 'servie':
-      statusText = 'Servie';
-      statusColor = Colors.purple;
-      break;
-    case 'cancelled':
-    case 'annule':
-    case 'annulee':
-      statusText = 'Annulée';
-      statusColor = Colors.red;
-      break;
-    default:
-      statusText = order.status;
-  }
-  
-  // Le reste de la méthode reste inchangé...
-  return InkWell(
-    onTap: () {
-      _showOrderDetailsModal(context, order);
-    },
-    child: Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // En-tête modifié: seulement table, nombre d'éléments et statut
-            Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: AppTheme.accentColor,
-                  child: Icon(Icons.table_restaurant, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Table $tableNumber',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      '${order.customerCount} Éléments',
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Badge d'état
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Boutons d'action
-            Row(
-              children: [
-                // Ne pas afficher de boutons d'action pour les commandes déjà servies ou annulées
-                if (!isServed && !isCancelled) ...[
-                  // Bouton Servir (uniquement pour les commandes prêtes)
-                  if (isReady)
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Confirmation avant de servir la commande
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: const Text('Confirmer'),
-                                content: const Text('Marquer cette commande comme servie ?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Annuler'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      context.read<OrderBloc>().add(
-                                        ConfirmOrderServed(orderId: order.id),
-                                      );
-                                    },
-                                    child: const Text('Confirmer'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.secondaryColor,
-                        ),
-                        child: const Text('Servir'),
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                  // Bouton Annuler (pour toutes les commandes non servies/annulées)
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () {
-                        String message = 'Annuler cette commande ?';
-                        if (isPreparing || isReady) {
-                          message = 'Cette demande d\'annulation sera transmise au manager pour approbation. Continuer ?';
-                        }
-                        
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              title: const Text('Confirmation'),
-                              content: Text(message),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Non'),
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    Navigator.pop(context);
-                                    try {
-                                      context.read<OrderBloc>().add(
-                                        RequestCancelOrder(
-                                          orderId: order.id,
-                                          currentStatus: order.status,
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Erreur: ${e.toString()}'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  child: const Text('Oui'),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
-                      child: const Text('Annuler'),
-                    ),
-                  ),
-                ],
-                if (isServed || isCancelled)
-                  const Expanded(
-                    child: Text(
-                      'Aucune action disponible',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-  
-
-void _showOrderDetailsModal(BuildContext context, Order order) {
-    context.read<OrderBloc>().add(LoadOrderDetails(orderId: order.id));
-  // Utiliser la méthode getActualTableNumber du modèle Order
-  String tableNumber = order.getActualTableNumber();
-  
-  // Calculer le total
-  double total = 0;
-  for (var item in order.items) {
-    if (item is OrderItem) {
-      total += item.price * item.quantity;
+    switch (order.status.toLowerCase()) {
+      case 'pending':
+      case 'new':
+        statusText = 'En attente';
+        statusColor = Colors.orange;
+        break;
+      case 'preparing':
+        statusText = 'En préparation';
+        statusColor = Colors.blue;
+        break;
+      case 'ready':
+        statusText = 'Prête';
+        statusColor = Colors.green;
+        break;
+      case 'served':
+        statusText = 'Servie';
+        statusColor = Colors.purple;
+        break;
+      case 'cancelled':
+        statusText = 'Annulée';
+        statusColor = Colors.red;
+        break;
+      default:
+        statusText = order.status;
     }
-  }
-  
-  // Déterminer l'état et les couleurs
-  String statusText = 'Inconnu';
-  Color statusColor = Colors.grey;
-  
-  switch (order.status.toLowerCase()) {
-    case 'pending':
-    case 'new':
-    case 'en_attente':
-    case 'en attente':
-      statusText = 'En attente';
-      statusColor = Colors.orange;
-      break;
-    case 'preparing':
-    case 'en preparation':
-    case 'en_preparation':
-      statusText = 'En préparation';
-      statusColor = Colors.blue;
-      break;
-    case 'ready':
-    case 'pret':
-    case 'prete':
-      statusText = 'Prête';
-      statusColor = Colors.green;
-      break;
-    case 'served':
-    case 'servi':
-    case 'servie':
-      statusText = 'Servie';
-      statusColor = Colors.purple;
-      break;
-    case 'cancelled':
-    case 'annule':
-    case 'annulee':
-      statusText = 'Annulée';
-      statusColor = Colors.red;
-      break;
-    default:
-      statusText = order.status;
-  }
-  
-  // Vérifier les actions disponibles
-  bool isReady = order.status.toLowerCase() == 'ready' || 
-                order.status.toLowerCase() == 'pret' || 
-                order.status.toLowerCase() == 'prete';
-  bool isServed = order.status.toLowerCase() == 'served' || 
-                 order.status.toLowerCase() == 'servi' || 
-                 order.status.toLowerCase() == 'servie';
-  bool isCancelled = order.status.toLowerCase() == 'cancelled' || 
-                    order.status.toLowerCase() == 'annule' || 
-                    order.status.toLowerCase() == 'annulee';
-  
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (BuildContext context) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // En-tête avec seulement la table
-            Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: AppTheme.accentColor,
-                  radius: 20,
-                  child: Icon(Icons.table_restaurant, color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
+
+    return InkWell(
+      onTap: () {
+        _showOrderDetailsModal(context, order);
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: AppTheme.accentColor,
+                    child: Icon(Icons.table_restaurant, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Table $tableNumber',
+                        'Table ${order.getActualTableNumber()}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                          fontSize: 16,
                         ),
                       ),
                       Text(
@@ -495,53 +216,262 @@ void _showOrderDetailsModal(BuildContext context, Order order) {
                       ),
                     ],
                   ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  if (!isServed && !isCancelled) ...[
+                    if (isReady)
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text('Confirmer'),
+                                  content: const Text('Marquer cette commande comme servie ?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Annuler'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        context.read<OrderBloc>().add(
+                                          ConfirmOrderServed(orderId: order.id),
+                                        );
+                                      },
+                                      child: const Text('Confirmer'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.secondaryColor,
+                          ),
+                          child: const Text('Servir'),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          String message = 'Annuler cette commande ?';
+                          if (isPreparing || isReady) {
+                            message = 'Cette demande d\'annulation sera transmise au manager pour approbation. Continuer ?';
+                          }
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text('Confirmation'),
+                                content: Text(message),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Non'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+                                      try {
+                                        context.read<OrderBloc>().add(
+                                          RequestCancelOrder(
+                                            orderId: order.id,
+                                            currentStatus: order.status,
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Erreur: ${e.toString()}'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: const Text('Oui'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                  ],
+                  if (isServed || isCancelled)
+                    const Expanded(
+                      child: Text(
+                        'Aucune action disponible',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showOrderDetailsModal(BuildContext context, Order order) {
+    context.read<OrderBloc>().add(LoadOrderDetails(orderId: order.id));
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return BlocBuilder<OrderBloc, OrderState>(
+          builder: (context, state) {
+            final detailedOrder = state.currentOrderDetails ?? order;
+            return _OrderDetailsContent(order: detailedOrder);
+          },
+        );
+      },
+    );
+  }
+
+  void _navigateToScreen(BuildContext context, int index) {
+    if (index == _currentIndex) return;
+    setState(() {
+      _currentIndex = index;
+    });
+    switch (index) {
+      case 0:
+        Navigator.of(context).pushReplacementNamed('/home');
+        break;
+      case 1:
+        break;
+      case 2:
+        Navigator.of(context).pushReplacementNamed('/tables');
+        break;
+      case 3:
+        Navigator.of(context).pushReplacementNamed('/profile');
+        break;
+    }
+  }
+}
+
+class _OrderDetailsContent extends StatelessWidget {
+  final Order order;
+
+  const _OrderDetailsContent({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final totalPrice = order.items.fold(
+      0.0, 
+      (sum, item) => sum + (item.price * (item.quantity ?? 1))
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: AppTheme.accentColor,
+                      child: Icon(Icons.table_restaurant, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Table ${order.getActualTableNumber()}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          '${order.customerCount} Éléments',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: statusColor,
+                    color: _getStatusColor(order.status),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    statusText,
+                    _getStatusText(order.status),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
                     ),
                   ),
                 ),
               ],
             ),
-            
-            // Reste du code inchangé pour ne pas causer d'erreurs
             const SizedBox(height: 20),
-            
-            // Date et heure
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Mardi, ${DateFormat('dd MMMM yyyy').format(order.createdAt)}',
-                  style: const TextStyle(color: Colors.black54),
+                  DateFormat('EEEE, dd MMMM yyyy', 'fr_FR').format(order.createdAt),
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
                 Text(
                   DateFormat('HH:mm').format(order.createdAt),
-                  style: const TextStyle(color: Colors.black54),
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
             ),
-            
-            // Le reste du code reste le même...
             const SizedBox(height: 20),
-            
-            // En-têtes de la liste
+            const Divider(),
             const Row(
               children: [
                 Expanded(
                   flex: 3,
                   child: Text(
-                    'Élements',
+                    'Éléments',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -563,63 +493,34 @@ void _showOrderDetailsModal(BuildContext context, Order order) {
                 ),
               ],
             ),
+            ...order.items.map((item) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(item is OrderItem ? item.name : item['name'] ?? ''),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Text(
+                        '${item is OrderItem ? item.quantity : item['quantity'] ?? 1}',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Text(
+                        '${(item is OrderItem ? item.price : item['price'] ?? 0).toStringAsFixed(2)} €',
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
             const Divider(),
-            
-            // Liste des articles - le reste du code inchangé
-           Expanded(
-  child: ListView.builder(
-    itemCount: order.items.length,
-    itemBuilder: (context, index) {
-      // Vérifier si l'item est bien un OrderItem
-      if (order.items[index] is! Map && order.items[index] is! OrderItem) {
-        return const SizedBox.shrink();
-      }
-      
-      // Créer un OrderItem à partir des données
-      OrderItem item;
-      try {
-        if (order.items[index] is OrderItem) {
-          item = order.items[index] as OrderItem;
-        } else {
-          // Si c'est un Map, le convertir en OrderItem
-          final itemMap = order.items[index] as Map<String, dynamic>;
-          item = OrderItem.fromJson(itemMap);
-        }
-      } catch (e) {
-        return const SizedBox.shrink();
-      }
-
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Text(item.name),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                '${item.quantity}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                item.price.toStringAsFixed(2),
-                textAlign: TextAlign.right,
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  ),
-),
-                 
-            
-            // Total
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
@@ -627,122 +528,75 @@ void _showOrderDetailsModal(BuildContext context, Order order) {
                 children: [
                   const Text(
                     'Total',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                   Text(
-                    total.toStringAsFixed(2),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    '${totalPrice.toStringAsFixed(2)} €',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
             ),
-            
-            // Afficher les boutons conditionnellement
-            if (!isServed && !isCancelled) ...[
-              // Bouton Annuler
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Afficher une confirmation pour annuler
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Confirmation'),
-                        content: const Text('Voulez-vous annuler cette commande ?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Non'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              context.read<OrderBloc>().add(
-                                RequestCancelOrder(
-                                  orderId: order.id,
-                                  currentStatus: order.status,
-                                ),
-                              );
-                            },
-                            child: const Text('Oui'),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: const Text(
-                  'Annuler',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Bouton Servir (uniquement pour les commandes prêtes)
-              if (isReady)
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.read<OrderBloc>().add(
-                      ConfirmOrderServed(orderId: order.id),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.secondaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+            if (order.notes != null && order.notes!.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Notes:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black54,
+                    ),
                   ),
-                  child: const Text(
-                    'Servir',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-            ],
-            if (isServed || isCancelled)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  'Aucune action disponible',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+                  Text(order.notes!),
+                ],
               ),
           ],
         ),
-      );
-    },
-  );
-}
+      ),
+    );
+  }
 
-  void _navigateToScreen(BuildContext context, int index) {
-    if (index == _currentIndex) return;
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'new':
+        return Colors.orange;
+      case 'preparing':
+        return Colors.blue;
+      case 'ready':
+        return Colors.green;
+      case 'served':
+        return Colors.purple;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
 
-    setState(() {
-      _currentIndex = index;
-    });
-
-    switch (index) {
-      case 0:
-        // Navigation vers l'écran d'accueil
-        Navigator.of(context).pushReplacementNamed('/home');
-        break;
-      case 1:
-        // Déjà sur l'écran des commandes
-        break;
-      case 2:
-        // Navigation vers l'écran de table
-        Navigator.of(context).pushReplacementNamed('/tables');
-        break;
-      case 3:
-        // Navigation vers l'écran de profil
-        Navigator.of(context).pushReplacementNamed('/profile');
-        break;
+  String _getStatusText(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'new':
+        return 'En attente';
+      case 'preparing':
+        return 'En préparation';
+      case 'ready':
+        return 'Prête';
+      case 'served':
+        return 'Servie';
+      case 'cancelled':
+        return 'Annulée';
+      default:
+        return status;
     }
   }
 }
