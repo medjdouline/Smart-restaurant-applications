@@ -1,4 +1,3 @@
-// lib/screens/home/home_screen.dart
 import 'package:app_serveur/blocs/auth/auth_status.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Load data at startup
     context.read<OrderBloc>().add(LoadOrders());
     context.read<NotificationBloc>().add(LoadNotifications());
     context.read<HomeBloc>().add(LoadHomeDashboard());
@@ -49,9 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Accueil'),
         backgroundColor: AppTheme.primaryColor,
         elevation: 0,
-        automaticallyImplyLeading: false, // Supprime la flèche retour
+        automaticallyImplyLeading: false,
         actions: [
-          // Icône de notification avec badge
           BlocBuilder<NotificationBloc, NotificationState>(
             builder: (context, state) {
               final int unreadCount = state.notifications
@@ -136,15 +133,12 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               child: CustomScrollView(
                 slivers: [
-                  // App Bar
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 20),
                       child: _buildHeader(),
                     ),
                   ),
-
-                  // Content
                   SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +173,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader() {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (BuildContext context, AuthState state) {
-        // Get username
         String username = "Utilisateur";
         if (state.status == AuthStatus.authenticated && state.user != null) {
           username = state.user!.firstName;
@@ -212,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, homeState) {
             return Row(
               children: [
-                // Assistance Requests Summary
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -252,7 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Ready Orders Summary
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -299,102 +290,134 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
- Widget _buildOrdersSection() {
-  return BlocBuilder<OrderBloc, OrderState>(
-    builder: (context, state) {
-      if (state.status == OrderStatus.loading) {
-        return const Center(child: CircularProgressIndicator());
-      }
+  Widget _buildOrdersSection() {
+    return BlocBuilder<OrderBloc, OrderState>(
+      builder: (context, state) {
+        if (state.status == OrderStatus.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-      final ordersToShow = [
-        ...state.newOrders.where((order) => order.status == 'preparing'),
-        ...state.readyOrders
-      ];
+        final ordersToShow = [
+          ...state.newOrders.where((order) => order.status == 'preparing'),
+          ...state.readyOrders
+        ];
 
-      const maxOrdersToShow = 2;
-      final showViewMore = ordersToShow.length > maxOrdersToShow;
-      final displayedOrders = showViewMore && !state.currentFilter.contains('Tous')
-          ? ordersToShow.take(maxOrdersToShow).toList()
-          : ordersToShow;
+        const maxOrdersToShow = 2;
+        final showViewMore = ordersToShow.length > maxOrdersToShow;
+        final displayedOrders = showViewMore && !state.currentFilter.contains('Tous')
+            ? ordersToShow.take(maxOrdersToShow).toList()
+            : ordersToShow;
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(
-            title: 'Commandes prêtes',
-            count: ordersToShow.length,
-          ),
-          ...displayedOrders.map((order) {
-            String statusText = 'En attente';
-            Color statusColor = Colors.orange;
-            
-            if (order.status == 'ready') {
-              statusText = 'Prête';
-              statusColor = Colors.green;
-            } else if (order.status == 'preparing') {
-              statusText = 'En préparation';
-              statusColor = Colors.blue;
-            }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: 'Commandes prêtes',
+              count: ordersToShow.length,
+            ),
+            ...displayedOrders.map((order) {
+              String statusText = 'En attente';
+              Color statusColor = Colors.orange;
+              
+              if (order.status == 'ready') {
+                statusText = 'Prête';
+                statusColor = Colors.green;
+              } else if (order.status == 'preparing') {
+                statusText = 'En préparation';
+                statusColor = Colors.blue;
+              }
 
-            return GestureDetector(
-              onTap: () => _showOrderDetailsModal(context, order),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
+              return Card(
+                margin: const EdgeInsets.only(bottom: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const CircleAvatar(
+                            backgroundColor: AppTheme.accentColor,
+                            child: Icon(Icons.table_restaurant, color: Colors.white),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Table ${order.getActualTableNumber()}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat('HH:mm').format(order.createdAt),
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              statusText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (order.status != 'served' && order.status != 'cancelled')
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            const CircleAvatar(
-                              backgroundColor: AppTheme.accentColor,
-                              child: Icon(Icons.table_restaurant, color: Colors.white),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-  'Table ${order.getActualTableNumber()}',  // Use the method instead of tableId directly
-  style: const TextStyle(
-    fontWeight: FontWeight.bold,
-    fontSize: 16,
-  ),
-),
-                                 Text(
-  'Table ${order.getActualTableNumber()}',  // Add "Table" prefix + method
-  style: const TextStyle(color: Colors.black54),
-),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: statusColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                statusText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                            if (order.status == 'ready')
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Confirmation'),
+                                        content: const Text('Marquer cette commande comme servie ?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text('Non'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(ctx);
+                                              context.read<OrderBloc>().add(
+                                                ConfirmOrderServed(orderId: order.id),
+                                              );
+                                            },
+                                            child: const Text('Oui'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.secondaryColor,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  ),
+                                  child: const Text('Servir'),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        if (order.status != 'served' && order.status != 'cancelled')
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
+                            ElevatedButton(
                               onPressed: () {
                                 String message = 'Annuler cette commande ?';
                                 if (order.status == 'preparing' || order.status == 'ready') {
@@ -426,390 +449,106 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 );
                               },
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.red,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
                               ),
                               child: const Text('Annuler'),
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
-          if (showViewMore && !state.currentFilter.contains('Tous'))
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  context.read<OrderBloc>().add(FilterOrders(filter: 'Tous'));
-                },
-                child: const Text(
-                  'voir plus',
-                  style: TextStyle(
-                    color: AppTheme.accentColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          if (state.currentFilter.contains('Tous') && ordersToShow.length > maxOrdersToShow)
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  context.read<OrderBloc>().add(FilterOrders(filter: 'En attente'));
-                },
-                child: const Text(
-                  'voir moins',
-                  style: TextStyle(
-                    color: AppTheme.accentColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    },
-  );
-}
-
- Widget _buildAssistanceRequestsSection(BuildContext context, HomeState state) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // Header section
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.help_outline,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Demande d\'assistance',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ],
-          ),
-          if (state.assistanceRequestsCount > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${state.assistanceRequestsCount}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onError,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      // List of assistance requests
-      AssistanceRequestsWidget(
-        requests: state.getVisibleAssistanceRequests(),
-        onComplete: (requestId) {
-          // This properly triggers the event in the bloc
-          context.read<HomeBloc>().add(CompleteAssistanceRequest(requestId: requestId));
-        },
-        showViewMore: state.shouldShowAssistanceRequestsViewMore(),
-        onViewMorePressed: () {
-          context.read<HomeBloc>().add(ToggleShowAllAssistanceRequests());
-        },
-      ),
-    ],
-  );
-}
-
-  void _showOrderDetailsModal(BuildContext context, Order order) {
-    // Calculate total
-    double total = 0;
-    for (var item in order.items) {
-      total += item.price * item.quantity;
-    }
-
-    // Determine status and colors
-    String statusText = 'Inconnu';
-    Color statusColor = Colors.grey;
-    String tableNumber = order.getActualTableNumber();
-
-    if (order.status == 'new') {
-      statusText = 'En attente';
-      statusColor = Colors.orange;
-    } else if (order.status == 'preparing') {
-      statusText = 'En préparation';
-      statusColor = Colors.blue;
-    } else if (order.status == 'ready') {
-      statusText = 'Prête';
-      statusColor = Colors.green;
-    } else if (order.status == 'served') {
-      statusText = 'Servie';
-      statusColor = Colors.purple;
-    } else if (order.status == 'cancelled') {
-      statusText = 'Annulée';
-      statusColor = Colors.red;
-    }
-
-    // Check available actions
-    bool isReady = order.status == 'ready';
-    bool isServed = order.status == 'served';
-    bool isCancelled = order.status == 'cancelled';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header with user and table info
-              Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: AppTheme.accentColor,
-                    radius: 20,
-                    child: Icon(Icons.person, color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          order.userId,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          order.tableId,
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Date and time
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Mardi, ${DateFormat('dd MMMM yyyy').format(order.createdAt)}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                  Text(
-                    DateFormat('HH:mm').format(order.createdAt),
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // List headers
-              const Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'Élements',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Text(
-                      'Qté',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Text(
-                      'Prix',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(),
-
-              // Items list
-              Expanded(
-                child: ListView.builder(
-                  itemCount: order.items.length,
-                  itemBuilder: (context, index) {
-                    OrderItem item = order.items[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(item.name),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              '${item.quantity}',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              item.price.toStringAsFixed(2),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const Divider(),
-
-              // Total
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    Text(
-                      total.toStringAsFixed(2),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Conditionally show buttons
-              if (!isServed && !isCancelled) ...[
-                // Cancel button
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Show confirmation for cancel
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text('Confirmation'),
-                          content: const Text(
-                              'Voulez-vous annuler cette commande ?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Non'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                context.read<OrderBloc>().add(
-                                      RequestCancelOrder(
-                                        orderId: order.id,
-                                        currentStatus: order.status,
-                                      ),
-                                    );
-                              },
-                              child: const Text('Oui'),
-                            ),
                           ],
-                        );
-                      },
-                    );
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            if (showViewMore && !state.currentFilter.contains('Tous'))
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    context.read<OrderBloc>().add(FilterOrders(filter: 'Tous'));
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
                   child: const Text(
-                    'Annuler',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Serve button (only for ready orders)
-                if (isReady)
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      context.read<OrderBloc>().add(
-                            ConfirmOrderServed(orderId: order.id),
-                          );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.secondaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Servir',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ),
-              ],
-              if (isServed || isCancelled)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Aucune action disponible',
-                    textAlign: TextAlign.center,
+                    'voir plus',
                     style: TextStyle(
-                      color: Colors.grey,
-                      fontStyle: FontStyle.italic,
+                      color: AppTheme.accentColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+            if (state.currentFilter.contains('Tous') && ordersToShow.length > maxOrdersToShow)
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    context.read<OrderBloc>().add(FilterOrders(filter: 'En attente'));
+                  },
+                  child: const Text(
+                    'voir moins',
+                    style: TextStyle(
+                      color: AppTheme.accentColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildAssistanceRequestsSection(BuildContext context, HomeState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.help_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Demande d\'assistance',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+            if (state.assistanceRequestsCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.error,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${state.assistanceRequestsCount}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onError,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        AssistanceRequestsWidget(
+          requests: state.getVisibleAssistanceRequests(),
+          onComplete: (requestId) {
+            context.read<HomeBloc>().add(CompleteAssistanceRequest(requestId: requestId));
+          },
+          showViewMore: state.shouldShowAssistanceRequestsViewMore(),
+          onViewMorePressed: () {
+            context.read<HomeBloc>().add(ToggleShowAllAssistanceRequests());
+          },
+        ),
+      ],
     );
   }
 
@@ -822,18 +561,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     switch (index) {
       case 0:
-        // Already on home screen
         break;
       case 1:
-        // Navigate to orders screen
         Navigator.of(context).pushReplacementNamed('/orders');
         break;
       case 2:
-        // Navigate to tables screen
         Navigator.of(context).pushReplacementNamed('/tables');
         break;
       case 3:
-        // Navigate to profile screen
         Navigator.of(context).pushReplacementNamed('/profile');
         break;
     }

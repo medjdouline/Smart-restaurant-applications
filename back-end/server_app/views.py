@@ -502,22 +502,77 @@ def get_order_details(request, order_id):
         for item_doc in order_items_ref.stream():
             item_data = item_doc.to_dict()
             
-            # Get dish information
+            # Get dish information - FIXED: Better error handling and logging
             dish_info = None
             dish_price = 0.0
             if 'idP' in item_data:
-                dish_ref = db.collection('plats').document(item_data['idP'])
-                dish_doc = dish_ref.get()
-                if dish_doc.exists:
-                    dish_data = dish_doc.to_dict()
-                    dish_price = dish_data.get('prix', 0.0)
+                dish_id = str(item_data['idP'])  # Ensure it's a string
+                logger.info(f"Looking for dish with ID: {dish_id}")
+                
+                try:
+                    # Try different possible ID formats
+                    dish_ref = db.collection('plats').document(dish_id)
+                    dish_doc = dish_ref.get()
+                    
+                    if dish_doc.exists:
+                        dish_data = dish_doc.to_dict()
+                        dish_price = float(dish_data.get('prix', 0.0))
+                        dish_info = {
+                            'id': dish_id,
+                            'nom': dish_data.get('nom', f'Plat {dish_id}'),
+                            'prix': dish_price,
+                            'description': dish_data.get('description', ''),
+                            'note': dish_data.get('note', 0),
+                            'estimation': dish_data.get('estimation', 0)
+                        }
+                        logger.info(f"Found dish: {dish_info}")
+                    else:
+                        # If not found, try to search by different field or log all available dishes
+                        logger.warning(f"Dish with ID '{dish_id}' not found in plats collection")
+                        
+                        # Optional: Search through all plats to find a match
+                        all_plats = db.collection('plats').stream()
+                        found_alternative = False
+                        for plat_doc in all_plats:
+                            plat_data = plat_doc.to_dict()
+                            plat_doc_id = plat_doc.id
+                            
+                            # Check if the document ID matches (in case of type mismatch)
+                            if str(plat_doc_id) == dish_id or plat_doc_id == dish_id:
+                                dish_price = float(plat_data.get('prix', 0.0))
+                                dish_info = {
+                                    'id': plat_doc_id,
+                                    'nom': plat_data.get('nom', f'Plat {plat_doc_id}'),
+                                    'prix': dish_price,
+                                    'description': plat_data.get('description', ''),
+                                    'note': plat_data.get('note', 0),
+                                    'estimation': plat_data.get('estimation', 0)
+                                }
+                                found_alternative = True
+                                logger.info(f"Found dish by alternative search: {dish_info}")
+                                break
+                        
+                        if not found_alternative:
+                            # Create a placeholder dish info
+                            dish_info = {
+                                'id': dish_id,
+                                'nom': f'Plat non trouvé (ID: {dish_id})',
+                                'prix': 0.0,
+                                'description': 'Plat non trouvé dans la base de données',
+                                'note': 0,
+                                'estimation': 0
+                            }
+                            logger.error(f"Could not find dish with ID '{dish_id}' anywhere")
+                            
+                except Exception as e:
+                    logger.error(f"Error fetching dish {dish_id}: {str(e)}")
                     dish_info = {
-                        'id': item_data['idP'],
-                        'nom': dish_data.get('nom', 'Unknown'),
-                        'prix': dish_price,
-                        'description': dish_data.get('description', ''),
-                        'note': dish_data.get('note', 0),
-                        'estimation': dish_data.get('estimation', 0)
+                        'id': dish_id,
+                        'nom': f'Erreur chargement plat {dish_id}',
+                        'prix': 0.0,
+                        'description': f'Erreur: {str(e)}',
+                        'note': 0,
+                        'estimation': 0
                     }
             
             quantity = item_data.get('quantité', 1)

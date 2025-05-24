@@ -91,13 +91,13 @@ class OrderCard extends StatelessWidget {
                         color: Colors.black87,
                       ),
                     ),
-                    Text(
-                      '${order.customerCount} Éléments',
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                      ),
-                    ),
+Text(
+  '${order.items.isNotEmpty ? order.items.length : order.customerCount} Éléments',
+  style: const TextStyle(
+    color: Colors.black54,
+    fontSize: 12,
+  ),
+),
                   ],
                 ),
               ),

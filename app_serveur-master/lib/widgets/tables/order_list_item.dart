@@ -16,6 +16,9 @@ class OrderListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Calculate total quantity of all items
+    int totalQuantity = order.items.fold<int>(0, (sum, item) => sum + (item.quantity as int));
+    
     return GestureDetector(
       onTap: () => onTap(),
       child: Container(
@@ -64,12 +67,12 @@ class OrderListItem extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${order.id} • ${order.items.length} Éléments',
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 13,
-                      ),
-                    ),
+  '${order.id} • ${order.items.isNotEmpty ? order.items.length : order.customerCount} Éléments',
+  style: const TextStyle(
+    color: Colors.black54,
+    fontSize: 13,
+  ),
+),
                   ],
                 ),
               ),

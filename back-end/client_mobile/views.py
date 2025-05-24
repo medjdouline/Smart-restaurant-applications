@@ -904,6 +904,32 @@ def get_notifications(request):
         logger.error(f"Error getting notifications: {str(e)}")  # This will show the actual error
         return Response({'error': f'Failed to retrieve notifications: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+@api_view(['PUT'])
+@permission_classes([IsClient])
+def mark_notification_as_read(request, id):
+    """Mark a notification as read"""
+    try:
+        client_id = request.user.uid
+        
+        # Get the notification
+        notification = firebase_crud.get_document('notifications', id)
+        
+        if not notification:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify the notification belongs to the client
+        if notification.get('recipient_id') != client_id:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Update the notification
+        firebase_crud.update_document('notifications', id, {'read': True})
+        
+        return Response({'success': True})
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {str(e)}")
+        return Response({'error': f'Failed to mark notification as read: {str(e)}'}, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_notification_details(request, notification_id):

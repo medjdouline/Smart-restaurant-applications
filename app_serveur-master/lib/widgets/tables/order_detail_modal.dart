@@ -1,9 +1,7 @@
 // lib/widgets/tables/order_detail_modal.dart
-import 'package:app_serveur/utils/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/order.dart';
-
 
 class OrderDetailModal extends StatelessWidget {
   final Order order;
@@ -15,13 +13,11 @@ class OrderDetailModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate total price
     final totalPrice = order.items.fold(
       0.0, 
-      (sum, item) => sum + (item.price * (item.quantity ?? 1))
+      (sum, item) => sum + (item.price * item.quantity)
     );
-
-    // Format dates
+    
     final dateFormat = DateFormat('EEEE, dd MMMM yyyy', 'fr_FR');
     final timeFormat = DateFormat('HH:mm');
     final formattedDate = dateFormat.format(order.createdAt);
@@ -29,202 +25,263 @@ class OrderDetailModal extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header with table info
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: AppTheme.accentColor,
-                      child: Icon(Icons.table_restaurant, color: Colors.white),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Table ${order.getActualTableNumber()}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          '${order.items.length} Éléments',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                // Status badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(order.status),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _getStatusText(order.status),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header with client and table info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Client: ${order.userId}',
                     style: const TextStyle(
-                      color: Colors.white,
                       fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Table: ${order.getActualTableNumber()}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  if (order.tableData?['nbrPersonne'] != null)
+                    Text(
+                      '${order.tableData?['nbrPersonne']} personnes',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(order.status),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-              ],
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Date and time
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
+                child: Text(
+                  _getStatusText(order.status),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Date and time
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   formattedDate,
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
                 ),
-                Text(
-                  formattedTime,
-                  style: TextStyle(color: Colors.grey[600]),
+              ),
+              Text(
+                formattedTime,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
                 ),
-              ],
-            ),
-            
-            const SizedBox(height: 20),
-            const Divider(),
-            
-            // Items list header
-            const Row(
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          const Divider(),
+          
+          // Items header
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
               children: [
                 Expanded(
-                  flex: 3,
+                  flex: 2,
                   child: Text(
                     'Éléments',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ),
                 Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Qté',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                  child: Center(
+                    child: Text(
+                      'Qté',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Prix',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.right,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'Prix',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            
-            // Items list
-            ...order.items.map((item) {
-              final orderItem = item is OrderItem ? item : OrderItem.fromJson(item as Map<String, dynamic>);
+          ),
+          
+          // Items list
+          Column(
+            children: order.items.map((item) {
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Row(
                   children: [
                     Expanded(
-                      flex: 3,
-                      child: Text(orderItem.name),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Text(
-                        '${orderItem.quantity}',
-                        textAlign: TextAlign.center,
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (item is OrderItem && item.description?.isNotEmpty == true)
+                            Text(
+                              item.description!,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     Expanded(
-                      flex: 1,
-                      child: Text(
-                        '${orderItem.price.toStringAsFixed(2)} €',
-                        textAlign: TextAlign.right,
+                      child: Center(
+                        child: Text(
+                          '${item.quantity}',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+  '${(item.price * item.quantity).toStringAsFixed(2)} DA',
+  style: const TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w500,
+  ),
+),
                       ),
                     ),
                   ],
                 ),
               );
             }).toList(),
-            
-            const Divider(),
-            
-            // Total
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+          ),
+          
+          const SizedBox(height: 20),
+          const Divider(),
+          
+          // Total
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
-                  Text(
-                    '${totalPrice.toStringAsFixed(2)} €',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Text(
+  '${totalPrice.toStringAsFixed(2)} DA',
+  style: const TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 18,
+  ),
+),
+              ],
             ),
-            
-            // Notes if available
-            if (order.notes != null && order.notes!.isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Notes:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black54,
-                    ),
+          ),
+          
+          // Notes if available
+          if (order.notes != null && order.notes!.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Notes:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black54,
                   ),
-                  Text(order.notes!),
-                ],
-              ),
-          ],
-        ),
+                ),
+                const SizedBox(height: 4),
+                Text(order.notes!),
+              ],
+            ),
+        ],
       ),
     );
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
       case 'new':
+      case 'en_attente':
         return Colors.orange;
       case 'preparing':
+      case 'en_preparation':
         return Colors.blue;
       case 'ready':
+      case 'pret':
+      case 'prete':
         return Colors.green;
       case 'served':
+      case 'servi':
+      case 'servie':
         return Colors.purple;
       case 'cancelled':
+      case 'annule':
+      case 'annulee':
         return Colors.red;
       default:
         return Colors.grey;
@@ -232,19 +289,28 @@ class OrderDetailModal extends StatelessWidget {
   }
 
   String _getStatusText(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
       case 'new':
+      case 'en_attente':
         return 'En attente';
       case 'preparing':
+      case 'en_preparation':
         return 'En préparation';
       case 'ready':
+      case 'pret':
+      case 'prete':
         return 'Prête';
       case 'served':
+      case 'servi':
+      case 'servie':
         return 'Servie';
       case 'cancelled':
+      case 'annule':
+      case 'annulee':
         return 'Annulée';
       default:
-        return 'Inconnu';
+        return status;
     }
   }
 }

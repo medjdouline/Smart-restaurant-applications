@@ -211,9 +211,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         ),
                       ),
                       Text(
-                        '${order.customerCount} Éléments',
-                        style: const TextStyle(color: Colors.black54),
-                      ),
+      '${DateFormat('HH:mm').format(order.createdAt)} • ${order.status == 'ready' ? 'Prête' : 'En cours'}',
+      style: TextStyle(
+        color: order.status == 'ready' ? Colors.green : Colors.orange,
+        fontSize: 13,
+      ),
+    ),
                     ],
                   ),
                   const Spacer(),
@@ -436,10 +439,10 @@ class _OrderDetailsContent extends StatelessWidget {
                             fontSize: 18,
                           ),
                         ),
-                        Text(
-                          '${order.customerCount} Éléments',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
+                       Text(
+  '${order.items.fold<int>(0, (sum, item) => sum + (item.quantity as int))} Éléments',
+  style: const TextStyle(color: Colors.black54),
+),
                       ],
                     ),
                   ],
@@ -522,9 +525,9 @@ class _OrderDetailsContent extends StatelessWidget {
                     Expanded(
                       flex: 1,
                       child: Text(
-                        '${(item is OrderItem ? item.price : item['price'] ?? 0).toStringAsFixed(2)} €',
-                        textAlign: TextAlign.right,
-                      ),
+  '${(item is OrderItem ? item.price : item['price'] ?? 0).toStringAsFixed(2)} DA',
+  textAlign: TextAlign.right,
+),
                     ),
                   ],
                 ),
@@ -544,12 +547,12 @@ class _OrderDetailsContent extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${totalPrice.toStringAsFixed(2)} €',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
+  '${totalPrice.toStringAsFixed(2)} DA',
+  style: const TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 18,
+  ),
+),
                 ],
               ),
             ),

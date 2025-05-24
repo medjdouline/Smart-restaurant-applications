@@ -1,11 +1,12 @@
-// lib/data/models/notification_model.dart
+// notification_model.dart
 import 'package:equatable/equatable.dart';
 
 enum NotificationType {
   reservation,
   fidelity,
   late,      
-  canceled    
+  canceled,
+  general // Added general type for API notifications
 }
 
 class Notification extends Equatable {
@@ -14,19 +15,42 @@ class Notification extends Equatable {
   final DateTime date;
   final NotificationType type;
   final bool isRead;
-  final String? reservationId;  
 
   const Notification({
     required this.id,
     required this.message,
     required this.date,
-    required this.type,
+    this.type = NotificationType.general,
     this.isRead = false,
-    this.reservationId, 
   });
 
+  factory Notification.fromJson(Map<String, dynamic> json) {
+    return Notification(
+      id: json['id'] ?? '',
+      message: json['message'] ?? '',
+      date: DateTime.parse(json['created_at'] ?? DateTime.now().toString()),
+      type: _parseNotificationType(json['type'] ?? 'general'),
+      isRead: json['read'] ?? false,
+    );
+  }
+
+  static NotificationType _parseNotificationType(String type) {
+    switch (type.toLowerCase()) {
+      case 'reservation':
+        return NotificationType.reservation;
+      case 'fidelity':
+        return NotificationType.fidelity;
+      case 'late':
+        return NotificationType.late;
+      case 'canceled':
+        return NotificationType.canceled;
+      default:
+        return NotificationType.general;
+    }
+  }
+
   @override
-  List<Object?> get props => [id, message, date, type, isRead, reservationId];
+  List<Object?> get props => [id, message, date, type, isRead];
 
   Notification copyWith({
     String? id,
@@ -34,7 +58,6 @@ class Notification extends Equatable {
     DateTime? date,
     NotificationType? type,
     bool? isRead,
-    String? reservationId,
   }) {
     return Notification(
       id: id ?? this.id,
@@ -42,7 +65,6 @@ class Notification extends Equatable {
       date: date ?? this.date,
       type: type ?? this.type,
       isRead: isRead ?? this.isRead,
-      reservationId: reservationId ?? this.reservationId,
     );
   }
 }

@@ -314,6 +314,9 @@ String _mapStatusToBackend(String frontendStatus) {
       throw Exception('Failed to fetch ready orders: ${e.toString()}');
     }
   }
+// In lib/data/repositories/order_repository_impl.dart
+// Updated getOrderDetails method in order_repository_impl.dart
+
 @override
 Future<Order> getOrderDetails(String orderId) async {
   try {
@@ -322,9 +325,25 @@ Future<Order> getOrderDetails(String orderId) async {
     print('[DEBUG] Received data: $data');
     
     if (data is Map<String, dynamic>) {
-      print('[DEBUG] Transforming response to order map');
-      final orderMap = _transformResponseToOrderMap(data);
-      print('[DEBUG] Order map: $orderMap');
+      // The new API returns detailed information, so we can use it directly
+      // Transform the response to ensure compatibility with Order.fromJson
+      final orderMap = {
+        'id': data['id'],
+        'dateCreation': data['dateCreation'],
+        'etat': data['etat'],
+        'table': data['table'],
+        'client': data['client'],
+        'server': data['server'],
+        'montant': data['montant'],
+        'calculated_total': data['calculated_total'],
+        'confirmation': data['confirmation'],
+        'items': data['items'], // This now contains the detailed dish information
+        'items_count': data['items_count'],
+        'total_quantity': data['total_quantity'],
+        'notes': data['notes'] ?? '',
+      };
+      
+      print('[DEBUG] Transformed order map: $orderMap');
       return Order.fromJson(orderMap);
     }
     

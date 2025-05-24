@@ -754,6 +754,11 @@ def manager_signup(request):
             'is_guest': False
         })
 
+        # Generate custom token and ID token
+        logger.info("Generating custom token...")
+        custom_token = auth.create_custom_token(user.uid)
+        logger.info("Custom token generated successfully")
+
         logger.info("Creating employee record...")
         employes_data = {
             'prenomE': request.data['first_name'],
@@ -785,7 +790,9 @@ def manager_signup(request):
             'uid': user.uid,
             'email': user.email,
             'employee_id': employes_ref.id,
-            'manager_id': manager_ref.id
+            'manager_id': manager_ref.id,
+            'custom_token': custom_token.decode('utf-8'),  # Convert bytes to string
+            'message': 'Manager account created successfully. Use the custom_token to authenticate on the client side.'
         }, status=status.HTTP_201_CREATED)
 
     except auth.EmailAlreadyExistsError as e:

@@ -68,7 +68,7 @@ class LoginForm extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Good taste !',
+               'Feuille de l\'aurès',
                 style: TextStyle(
                   color: Color.fromARGB(255, 80, 9, 4),
                   fontSize: 50,

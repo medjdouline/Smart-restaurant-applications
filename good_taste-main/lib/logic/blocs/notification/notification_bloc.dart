@@ -1,4 +1,4 @@
-// lib/logic/blocs/notification/notification_bloc.dart
+// notification_bloc.dart
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:good_taste/data/models/notification_model.dart';
@@ -15,35 +15,37 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
     on<MarkNotificationAsRead>(_onMarkNotificationAsRead);
   }
 
-  void _onLoadNotifications(
+  Future<void> _onLoadNotifications(
     LoadNotifications event,
     Emitter<NotificationState> emit,
-  ) {
+  ) async {
     emit(NotificationLoading());
     try {
-      final notifications = notificationRepository.getNotifications();
+      final notifications = await notificationRepository.getNotifications();
       emit(NotificationLoaded(notifications: notifications));
     } catch (e) {
       emit(NotificationError(message: e.toString()));
     }
   }
 
-  void _onMarkNotificationAsRead(
+  Future<void> _onMarkNotificationAsRead(
     MarkNotificationAsRead event,
     Emitter<NotificationState> emit,
-  ) {
+  ) async {
     if (state is NotificationLoaded) {
       final currentState = state as NotificationLoaded;
-      notificationRepository.markAsRead(event.notificationId);
+      final success = await notificationRepository.markAsRead(event.notificationId);
       
-      final updatedNotifications = currentState.notifications.map((notification) {
-        if (notification.id == event.notificationId) {
-          return notification.copyWith(isRead: true);
-        }
-        return notification;
-      }).toList();
-      
-      emit(NotificationLoaded(notifications: updatedNotifications));
+      if (success) {
+        final updatedNotifications = currentState.notifications.map((notification) {
+          if (notification.id == event.notificationId) {
+            return notification.copyWith(isRead: true);
+          }
+          return notification;
+        }).toList();
+        
+        emit(NotificationLoaded(notifications: updatedNotifications));
+      }
     }
   }
 }

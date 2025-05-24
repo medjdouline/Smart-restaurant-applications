@@ -1,5 +1,9 @@
 part of 'profile_bloc.dart';
 
+// NEW: Enum for allergies loading status
+enum AllergiesLoadingStatus { initial, loading, success, failure }
+enum RestrictionsLoadingStatus { initial, loading, success, failure } // NEW
+
 class ProfileState extends Equatable {
   const ProfileState({
     this.username = const Username.pure(),
@@ -13,7 +17,13 @@ class ProfileState extends Equatable {
     this.isValid = false,
     this.errorMessage,
     this.allergies = const [],
-    
+    this.selectedAllergies = const [], // NEW: For managing allergy selections
+    this.allergiesStatus = AllergiesLoadingStatus.initial, // NEW: Separate status for allergies
+    this.allergiesErrorMessage, // NEW: Separate error message for allergies
+    this.restrictions = const [],
+    this.selectedRestrictions = const [],
+    this.restrictionsStatus = RestrictionsLoadingStatus.initial,
+    this.restrictionsErrorMessage,
   });
 
   final Username username;
@@ -22,11 +32,18 @@ class ProfileState extends Equatable {
   final String? gender;
   final DateTime? dateOfBirth;
   final String? profileImage; 
-  final String? tempProfileImage;  // 
+  final String? tempProfileImage;
   final FormzSubmissionStatus status;
   final bool isValid;
   final String? errorMessage;
-  final List<String> allergies; 
+  final List<String> allergies;
+  final List<String> selectedAllergies; // NEW
+  final AllergiesLoadingStatus allergiesStatus; // NEW
+  final String? allergiesErrorMessage; // NEW
+  final List<String> restrictions;
+  final List<String> selectedRestrictions;
+  final RestrictionsLoadingStatus restrictionsStatus;
+  final String? restrictionsErrorMessage;
 
   ProfileState copyWith({
     Username? username,
@@ -39,10 +56,14 @@ class ProfileState extends Equatable {
     FormzSubmissionStatus? status,
     bool? isValid,
     String? errorMessage,
-   List<String>? allergies,
-
-
-
+    List<String>? allergies,
+    List<String>? selectedAllergies, // NEW
+    AllergiesLoadingStatus? allergiesStatus, // NEW
+    String? allergiesErrorMessage, // NEW
+    List<String>? restrictions,
+    List<String>? selectedRestrictions,
+    RestrictionsLoadingStatus? restrictionsStatus,
+    String? restrictionsErrorMessage,
   }) {
     return ProfileState(
       username: username ?? this.username,
@@ -56,12 +77,26 @@ class ProfileState extends Equatable {
       isValid: isValid ?? this.isValid,
       errorMessage: errorMessage,
       allergies: allergies ?? this.allergies,
-      
+      selectedAllergies: selectedAllergies ?? this.selectedAllergies,
+      allergiesStatus: allergiesStatus ?? this.allergiesStatus,
+      allergiesErrorMessage: allergiesErrorMessage,
+      restrictions: restrictions ?? this.restrictions,
+      selectedRestrictions: selectedRestrictions ?? this.selectedRestrictions,
+      restrictionsStatus: restrictionsStatus ?? this.restrictionsStatus,
+      restrictionsErrorMessage: restrictionsErrorMessage,
     );
   }
 
- 
   String? get displayProfileImage => tempProfileImage ?? profileImage;
+
+  // NEW: Check if allergies have been modified
+  bool get hasAllergiesChanged => 
+      selectedAllergies.length != allergies.length ||
+      !selectedAllergies.every((allergy) => allergies.contains(allergy));
+
+  bool get hasRestrictionsChanged => 
+    selectedRestrictions.length != restrictions.length ||
+    !selectedRestrictions.every((restriction) => restrictions.contains(restriction));
 
   @override
   List<Object?> get props => [
@@ -76,6 +111,12 @@ class ProfileState extends Equatable {
     isValid,
     errorMessage,
     allergies,
-    
+    selectedAllergies,
+    allergiesStatus,
+    allergiesErrorMessage,
+    restrictions,
+    selectedRestrictions,
+    restrictionsStatus,
+    restrictionsErrorMessage,
   ];
 }

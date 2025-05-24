@@ -18,14 +18,36 @@ class ProfileApiService {
       data,
     );
   }
-   Future<ApiResponse> getAllergies() async {
-    return await _apiClient.get('client-mobile/allergies/');
+
+  Future<ApiResponse> getAllergies() async {
+    return await _apiClient.get(
+      'client-mobile/allergies/',
+      requiresAuth: true,
+    );
   }
 
   Future<ApiResponse> updateAllergies(List<String> allergies) async {
     return await _apiClient.put(
       'client-mobile/allergies/update/',
       {'allergies': allergies},
+      requiresAuth: true,
+    );
+  }
+
+  // NEW: Get user's dietary restrictions from API
+  Future<ApiResponse> getRestrictions() async {
+    return await _apiClient.get(
+      'client-mobile/restrictions/',
+      requiresAuth: true,
+    );
+  }
+
+  // NEW: Update user's dietary restrictions via API
+  Future<ApiResponse> updateRestrictions(List<String> restrictions) async {
+    return await _apiClient.put(
+      'client-mobile/restrictions/update/',
+      {'restrictions': restrictions},
+      requiresAuth: true,
     );
   }
 }

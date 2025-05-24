@@ -35,6 +35,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:good_taste/di/di.dart'; // Import the dependency injection
 import 'package:logging/logging.dart';
 import 'package:good_taste/data/repositories/profile_repository.dart';
+import 'package:good_taste/data/api/profile_api_service.dart';
 
 
 
@@ -107,6 +108,8 @@ class MyApp extends StatelessWidget {
             create: (context) => ProfileBloc(
               authRepository: RepositoryProvider.of<AuthRepository>(context),
               profileRepository: RepositoryProvider.of<ProfileRepository>(context),
+              allergiesRepository: RepositoryProvider.of<AllergiesRepository>(context),
+              regimeRepository: RepositoryProvider.of<RegimeRepository>(context),
             ),
           ),
           BlocProvider(

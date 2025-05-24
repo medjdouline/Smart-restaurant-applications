@@ -56,6 +56,7 @@ urlpatterns = [
     # Notifications endpoints
     path('notifications/', views.get_notifications, name='get_notifications'),
     path('notifications/<str:notification_id>/', views.get_notification_details, name='get_notification_details'),
+    path('notifications/<str:id>/mark_as_read/', views.mark_notification_as_read, name='mark_notification_as_read'),
     
     # Dashboard endpoint
     path('dashboard/', views.get_dashboard, name='get_dashboard'),

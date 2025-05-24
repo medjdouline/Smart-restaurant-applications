@@ -223,7 +223,7 @@ class OrderCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Montant: ${order.montant.toStringAsFixed(2)}€',
+                  'Montant: ${order.montant.toStringAsFixed(2)}DA',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.black87,
@@ -493,7 +493,7 @@ class OrderCard extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '${order.montant.toStringAsFixed(2)}€',
+                                '${order.montant.toStringAsFixed(2)}DA',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 18,

@@ -5,7 +5,7 @@ import 'package:good_taste/data/models/user.dart';
 import 'package:good_taste/data/services/reservation_service.dart';
 import 'package:good_taste/data/repositories/notification_repository.dart';
 import 'package:good_taste/di/di.dart';
-import 'package:good_taste/data/models/notification_model.dart';
+
 
 class ReservationHistoryRepository {
   final ReservationService _service;

@@ -1,7 +1,7 @@
 // profile_repository.dart
 import 'package:good_taste/data/api/profile_api_service.dart';
-import 'package:logging/logging.dart';
 import 'package:good_taste/data/api/api_client.dart';
+import 'package:logging/logging.dart';
 
 class ProfileRepository {
   final Logger _logger = Logger('ProfileRepository');
@@ -13,74 +13,68 @@ class ProfileRepository {
 
   Future<ApiResponse> getProfile() async {
     try {
-      return await _profileApiService.getProfile();
+      final response = await _profileApiService.getProfile();
+      _logger.info('Profile retrieved: ${response.success}');
+      return response;
     } catch (e) {
-      _logger.severe("Failed to get profile: $e");
-      return ApiResponse(
-        success: false,
-        error: 'Failed to load profile',
-      );
+      _logger.severe('Error getting profile: $e');
+      rethrow;
     }
   }
 
   Future<ApiResponse> updateProfile(Map<String, dynamic> data) async {
     try {
-      // FIX: Simplifier la logique - utiliser phone_number partout
-      final updateData = <String, dynamic>{};
-      
-      // Gérer phone_number (accepter les deux formats pour compatibilité)
-      if (data.containsKey('phone_number')) {
-        updateData['phone_number'] = data['phone_number'];
-      } else if (data.containsKey('phoneNumber')) {
-        updateData['phone_number'] = data['phoneNumber']; // Convertir en snake_case
-      }
-      
-      // Gérer profile_image
-      if (data.containsKey('profile_image')) {
-        updateData['profile_image'] = data['profile_image'];
-      } else if (data.containsKey('profileImage')) {
-        updateData['profile_image'] = data['profileImage']; // Convertir en snake_case
-      }
-
-      if (updateData.isEmpty) {
-        return ApiResponse(
-          success: false,
-          error: 'No valid fields to update',
-        );
-      }
-
-      _logger.info("Updating profile with data: $updateData");
-      return await _profileApiService.updateProfile(updateData);
+      final response = await _profileApiService.updateProfile(data);
+      _logger.info('Profile updated: ${response.success}');
+      return response;
     } catch (e) {
-      _logger.severe("Failed to update profile: $e");
-      return ApiResponse(
-        success: false,
-        error: 'Failed to update profile',
-      );
+      _logger.severe('Error updating profile: $e');
+      rethrow;
     }
   }
- Future<ApiResponse> getAllergies() async {
+
+  Future<ApiResponse> getAllergies() async {
     try {
-      return await _profileApiService.getAllergies();
+      final response = await _profileApiService.getAllergies();
+      _logger.info('Allergies retrieved: ${response.success}');
+      return response;
     } catch (e) {
-      _logger.severe("Failed to get allergies: $e");
-      return ApiResponse(
-        success: false,
-        error: 'Failed to load allergies',
-      );
+      _logger.severe('Error getting allergies: $e');
+      rethrow;
     }
   }
 
   Future<ApiResponse> updateAllergies(List<String> allergies) async {
     try {
-      _logger.info("Updating allergies: $allergies");
-      return await _profileApiService.updateAllergies(allergies);
+      final response = await _profileApiService.updateAllergies(allergies);
+      _logger.info('Allergies updated via API: ${response.success}');
+      return response;
     } catch (e) {
-      _logger.severe("Failed to update allergies: $e");
-      return ApiResponse(
-        success: false,
-        error: 'Failed to update allergies',
-      );
+      _logger.severe('Error updating allergies via API: $e');
+      rethrow;
     }
   }
+
+  // NEW: Get user's dietary restrictions from API
+Future<ApiResponse> getRestrictions() async {
+  try {
+    final response = await _profileApiService.getRestrictions();
+    _logger.info('Restrictions retrieved: ${response.success}');
+    return response;
+  } catch (e) {
+    _logger.severe('Error getting restrictions: $e');
+    rethrow;
+  }
+}
+
+Future<ApiResponse> updateRestrictions(List<String> restrictions) async {
+  try {
+    final response = await _profileApiService.updateRestrictions(restrictions);
+    _logger.info('Restrictions updated via API: ${response.success}');
+    return response;
+  } catch (e) {
+    _logger.severe('Error updating restrictions via API: $e');
+    rethrow;
+  }
+}
 }
