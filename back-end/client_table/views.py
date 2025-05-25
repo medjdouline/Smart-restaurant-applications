@@ -33,7 +33,7 @@ def view_client_profile(request):
             'email': client_data.get('email', ''),
             'birthdate': client_data.get('birthdate', ''),
             'gender': client_data.get('gender', ''),
-            'phoneNumber': client_data.get('phoneNumber', ''),
+            'phone_number' : client_data.get('phone_number',''),
             'fidelityPoints': client_data.get('fidelityPoints', 0),
             'preferences': client_data.get('preferences', []),
             'allergies': client_data.get('allergies', []),
@@ -48,29 +48,23 @@ def view_client_profile(request):
 @api_view(['PUT'])
 @permission_classes([IsClient])
 def update_client_profile(request):
-    """Update client profile information (excluding username)"""
     try:
         client_id = request.user.uid
-        
-        # Allow only specific fields to be updated
-        allowed_fields = [
-            'email', 'birthdate', 'gender', 'phoneNumber', 
-            'preferences', 'allergies', 'restrictions'
-        ]
-        
         update_data = {}
-        for field in allowed_fields:
-            if field in request.data:
-                update_data[field] = request.data[field]
-        
+
+        # Normalise les noms de champs
+        if 'phoneNumber' in request.data:
+            update_data['phone_number'] = request.data['phoneNumber']
+        elif 'phone_number' in request.data:
+            update_data['phone_number'] = request.data['phone_number']
+
         if not update_data:
-            return Response({'error': 'No valid fields to update'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No valid fields to update'}, status=400)
             
         firebase_crud.update_doc('clients', client_id, update_data)
         return Response({'message': 'Profile updated successfully'})
     except Exception as e:
-        logger.error(f"Error updating client profile: {str(e)}")
-        return Response({'error': 'Failed to update profile'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': str(e)}, status=500)
 
 # ==================
 # Orders Endpoints
