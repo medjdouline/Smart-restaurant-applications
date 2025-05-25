@@ -40,11 +40,10 @@ urlpatterns = [
 
 
     #commandes
-    path('orders/<str:order_id>/start/', views.commencer_commande, name='commencer_commande'),
 
     path('orders/<str:order_id>/start/', views.commencer_commande, name='commencer_commande'),
     path('orders/<str:order_id>/finish/', views.terminer_commande, name='terminer_commande'),
-    path('orders/<str:order_id>/cancel-notify/', views.notifier_commande_annulee, name='notifier_commande_annulee'),
-    path('ingredients/alerts/', views.verifier_alertes_ingredients, name='verifier_alertes_ingredients'),
+    path('orders/<str:order_id>/cancel-notify/', views.notifier_commande_annulee, name='notifier_commande_annulee'), #non
+    path('ingredients/alerts/', views.verifier_alertes_ingredients, name='verifier_alertes_ingredients'), #duplique
     path('orders/<str:order_id>/cancel/', views.annuler_commande, name='annuler_commande'),
 ]
