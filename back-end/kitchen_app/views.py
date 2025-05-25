@@ -621,4 +621,1081 @@ def get_all_plats(request):
     except Exception as e:
         logger.error(f"Error fetching all plats: {str(e)}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
+
+# Ajoutez cette fonction à votre views.py après la fonction get_all_plats
+
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def add_plat(request):
+    """
+    Ajouter un nouveau plat avec ses ingrédients
+    Crée un document dans 'plats' et un document dans 'plat_ingredients'
+    """
+    try:
+        data = json.loads(request.body)
+        
+        # Validation des données requises
+        required_fields = ['nom', 'description', 'prix', 'categorie', 'sous_categorie']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return JsonResponse({'error': f'Le champ {field} est requis'}, status=400)
+        
+        ingredients_data = data.get('ingredients', [])
+        if not ingredients_data:
+            return JsonResponse({'error': 'Au moins un ingrédient est requis'}, status=400)
+        
+        # Validation des ingrédients
+        for ingredient in ingredients_data:
+            if not isinstance(ingredient, dict):
+                return JsonResponse({'error': 'Format d\'ingrédient invalide'}, status=400)
+            if 'nom' not in ingredient or 'quantite' not in ingredient or 'unite' not in ingredient:
+                return JsonResponse({'error': 'Chaque ingrédient doit avoir un nom, une quantité et une unité'}, status=400)
+        
+        # Générer un nouvel ID pour le plat
+        plats_ref = db.collection('plats')
+        new_plat_ref = plats_ref.document()  # Génère automatiquement un ID
+        plat_id = new_plat_ref.id
+        
+        # Préparer les données du plat
+        plat_data = {
+            'nom': data['nom'].strip(),
+            'description': data['description'].strip(),
+            'prix': float(data['prix']),
+            'idCat': data['categorie'],
+            'idSousCat': data['sous_categorie'],
+            'note': 0,  # Note initiale
+            'estimation': 0,  # Estimation initiale (temps de préparation)
+            'quantite': 0,  # Quantité disponible initiale
+            'createdAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Créer le document plat
+        new_plat_ref.set(plat_data)
+        logger.info(f"Plat créé avec l'ID: {plat_id}")
+        
+        # Préparer les données des ingrédients pour plat_ingredients
+        ingredients_for_plat = []
+        for ingredient in ingredients_data:
+            ingredients_for_plat.append({
+                'nom': ingredient['nom'],
+                'quantite_g': float(ingredient['quantite']),
+                'unite': ingredient['unite']
+            })
+        
+        # Créer le document plat_ingredients
+        plat_ingredients_data = {
+            'idP': plat_id,
+            'ingredients': ingredients_for_plat,
+            'nom_du_plat': data['nom'].strip(),
+            'createdAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        plat_ingredients_ref = db.collection('plat_ingredients').document(plat_id)
+        plat_ingredients_ref.set(plat_ingredients_data)
+        logger.info(f"Ingrédients du plat créés pour l'ID: {plat_id}")
+        
+        # Retourner la réponse de succès avec les données du plat créé
+        response_data = {
+            'message': 'Plat ajouté avec succès',
+            'plat_id': plat_id,
+            'plat': {
+                'id': plat_id,
+                'nom': plat_data['nom'],
+                'description': plat_data['description'],
+                'prix': plat_data['prix'],
+                'categorie': plat_data['idCat'],
+                'sous_categorie': plat_data['idSousCat'],
+                'ingredients': ingredients_for_plat
+            }
+        }
+        
+        return JsonResponse(response_data, status=201)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Format JSON invalide'}, status=400)
+    except ValueError as e:
+        return JsonResponse({'error': f'Erreur de validation: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ajout du plat: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
     
+@api_view(['PUT'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def update_plat(request, plat_id):
+    """
+    Modifier les informations de base d'un plat (nom, description, prix, catégorie, sous-catégorie)
+    """
+    try:
+        data = json.loads(request.body)
+        
+        # Vérifier que le plat existe
+        plat_ref = db.collection('plats').document(plat_id)
+        plat_doc = plat_ref.get()
+        
+        if not plat_doc.exists:
+            return JsonResponse({'error': 'Plat non trouvé'}, status=404)
+        
+        # Préparer les données à mettre à jour
+        update_data = {}
+        
+        if 'nom' in data:
+            update_data['nom'] = data['nom'].strip()
+        if 'description' in data:
+            update_data['description'] = data['description'].strip()
+        if 'prix' in data:
+            update_data['prix'] = float(data['prix'])
+        if 'categorie' in data:
+            update_data['idCat'] = data['categorie']
+        if 'sous_categorie' in data:
+            update_data['idSousCat'] = data['sous_categorie']
+        
+        if not update_data:
+            return JsonResponse({'error': 'Aucune donnée à mettre à jour'}, status=400)
+        
+        # Ajouter la date de modification
+        update_data['updatedAt'] = firestore.SERVER_TIMESTAMP
+        
+        # Mettre à jour le plat
+        plat_ref.update(update_data)
+        
+        # Mettre à jour le nom dans plat_ingredients si le nom a changé
+        if 'nom' in update_data:
+            plat_ingredients_ref = db.collection('plat_ingredients').document(plat_id)
+            plat_ingredients_doc = plat_ingredients_ref.get()
+            if plat_ingredients_doc.exists:
+                plat_ingredients_ref.update({
+                    'nom_du_plat': update_data['nom'],
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+        
+        logger.info(f"Plat {plat_id} mis à jour avec succès")
+        
+        return JsonResponse({
+            'message': 'Plat mis à jour avec succès',
+            'plat_id': plat_id,
+            'updated_fields': list(update_data.keys())
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Format JSON invalide'}, status=400)
+    except ValueError as e:
+        return JsonResponse({'error': f'Erreur de validation: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour du plat: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+
+
+# 2. Modifier/Ajouter/Supprimer des ingrédients d'un plat
+@api_view(['PUT'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def update_plat_ingredients(request, plat_id):
+    """
+    Modifier la liste des ingrédients d'un plat
+    Format attendu: {
+        "action": "add|update|delete",
+        "ingredient": {
+            "nom": "nom_ingredient",
+            "quantite": 100,
+            "unite": "g"
+        }
+    }
+    Ou pour remplacer toute la liste:
+    {
+        "action": "replace",
+        "ingredients": [...]
+    }
+    """
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+        
+        if action not in ['add', 'update', 'delete', 'replace']:
+            return JsonResponse({'error': 'Action non valide. Utilisez: add, update, delete, replace'}, status=400)
+        
+        # Vérifier que le plat existe
+        plat_ref = db.collection('plats').document(plat_id)
+        plat_doc = plat_ref.get()
+        
+        if not plat_doc.exists:
+            return JsonResponse({'error': 'Plat non trouvé'}, status=404)
+        
+        # Récupérer le document plat_ingredients
+        plat_ingredients_ref = db.collection('plat_ingredients').document(plat_id)
+        plat_ingredients_doc = plat_ingredients_ref.get()
+        
+        if not plat_ingredients_doc.exists:
+            # Créer le document s'il n'existe pas
+            plat_data = plat_doc.to_dict()
+            plat_ingredients_ref.set({
+                'idP': plat_id,
+                'nom_du_plat': plat_data.get('nom', 'Unknown'),
+                'ingredients': [],
+                'createdAt': firestore.SERVER_TIMESTAMP
+            })
+            current_ingredients = []
+        else:
+            plat_ingredients_data = plat_ingredients_doc.to_dict()
+            current_ingredients = plat_ingredients_data.get('ingredients', [])
+        
+        if action == 'replace':
+            # Remplacer toute la liste
+            new_ingredients = data.get('ingredients', [])
+            for ingredient in new_ingredients:
+                if not all(key in ingredient for key in ['nom', 'quantite', 'unite']):
+                    return JsonResponse({'error': 'Chaque ingrédient doit avoir nom, quantite et unite'}, status=400)
+            
+            plat_ingredients_ref.update({
+                'ingredients': new_ingredients,
+                'updatedAt': firestore.SERVER_TIMESTAMP
+            })
+            
+            return JsonResponse({
+                'message': 'Liste des ingrédients remplacée avec succès',
+                'ingredients_count': len(new_ingredients)
+            })
+        
+        # Pour les autres actions, traiter un ingrédient à la fois
+        ingredient_data = data.get('ingredient')
+        if not ingredient_data:
+            return JsonResponse({'error': 'Données d\'ingrédient requises'}, status=400)
+        
+        ingredient_name = ingredient_data.get('nom')
+        if not ingredient_name:
+            return JsonResponse({'error': 'Nom d\'ingrédient requis'}, status=400)
+        
+        # Trouver l'ingrédient existant
+        ingredient_index = -1
+        for i, ing in enumerate(current_ingredients):
+            if ing.get('nom') == ingredient_name:
+                ingredient_index = i
+                break
+        
+        if action == 'add':
+            if ingredient_index >= 0:
+                return JsonResponse({'error': 'Ingrédient déjà existant. Utilisez update pour le modifier'}, status=400)
+            
+            if not all(key in ingredient_data for key in ['quantite', 'unite']):
+                return JsonResponse({'error': 'Quantité et unité requises pour ajouter un ingrédient'}, status=400)
+            
+            new_ingredient = {
+                'nom': ingredient_name,
+                'quantite_g': float(ingredient_data['quantite']),
+                'unite': ingredient_data['unite']
+            }
+            current_ingredients.append(new_ingredient)
+            
+        elif action == 'update':
+            if ingredient_index < 0:
+                return JsonResponse({'error': 'Ingrédient non trouvé. Utilisez add pour l\'ajouter'}, status=400)
+            
+            # Mettre à jour les champs fournis
+            if 'quantite' in ingredient_data:
+                current_ingredients[ingredient_index]['quantite_g'] = float(ingredient_data['quantite'])
+            if 'unite' in ingredient_data:
+                current_ingredients[ingredient_index]['unite'] = ingredient_data['unite']
+            
+        elif action == 'delete':
+            if ingredient_index < 0:
+                return JsonResponse({'error': 'Ingrédient non trouvé'}, status=404)
+            
+            current_ingredients.pop(ingredient_index)
+        
+        # Mettre à jour le document
+        plat_ingredients_ref.update({
+            'ingredients': current_ingredients,
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        })
+        
+        logger.info(f"Ingrédients du plat {plat_id} mis à jour: {action} - {ingredient_name}")
+        
+        return JsonResponse({
+            'message': f'Ingrédient {action} avec succès',
+            'ingredient': ingredient_name,
+            'total_ingredients': len(current_ingredients)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Format JSON invalide'}, status=400)
+    except ValueError as e:
+        return JsonResponse({'error': f'Erreur de validation: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour des ingrédients: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+
+
+# 3. Obtenir tous les ingrédients du stock
+@api_view(['GET'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+def get_all_ingredients_stock(request):
+    """
+    Obtenir tous les ingrédients du stock avec nom, catégorie, quantité, date d'expiration
+    """
+    try:
+        ingredients_ref = db.collection('ingredients')
+        all_ingredients = []
+        
+        for doc in ingredients_ref.stream():
+            ingredient_data = doc.to_dict()
+            
+            # Extraire les informations pertinentes
+            ingredient_info = {
+                'id': doc.id,
+                'nom': ingredient_data.get('nom', 'Unknown'),
+                'categorie': ingredient_data.get('categorie', 'Unknown'),
+                'quantite': ingredient_data.get('quantite', 0),
+                'unite': ingredient_data.get('unite', ''),
+                'date_expiration': ingredient_data.get('date_expiration', ''),
+                'seuil_alerte': ingredient_data.get('seuil_alerte', 0),
+                'cout_par_unite': ingredient_data.get('cout_par_unite', 0),
+                'createdAt': ingredient_data.get('createdAt', ''),
+                # Déterminer le statut basé sur la quantité et le seuil d'alerte
+                'statut': 'Disponible'
+            }
+            
+            # Calculer le statut
+            current_quantity = ingredient_info['quantite']
+            alert_threshold = ingredient_info['seuil_alerte']
+            
+            if current_quantity <= 0:
+                ingredient_info['statut'] = 'Rupture de stock'
+            elif current_quantity <= alert_threshold:
+                ingredient_info['statut'] = 'Stock bas'
+            else:
+                ingredient_info['statut'] = 'Disponible'
+            
+            # Vérifier la date d'expiration si elle existe
+            if ingredient_info['date_expiration']:
+                try:
+                    from datetime import datetime, timedelta
+                    
+                    # Convertir la date d'expiration en objet datetime
+                    if isinstance(ingredient_info['date_expiration'], str):
+                        exp_date = datetime.fromisoformat(ingredient_info['date_expiration'].replace('Z', '+00:00'))
+                    else:
+                        exp_date = ingredient_info['date_expiration']
+                    
+                    # Vérifier si l'ingrédient expire bientôt (dans les 7 jours)
+                    now = datetime.now()
+                    if exp_date < now:
+                        ingredient_info['statut'] = 'Expiré'
+                    elif (exp_date - now).days <= 7:
+                        if ingredient_info['statut'] == 'Disponible':
+                            ingredient_info['statut'] = 'Expire bientôt'
+                            
+                except Exception as date_error:
+                    logger.warning(f"Erreur de parsing de date pour {ingredient_info['nom']}: {str(date_error)}")
+            
+            all_ingredients.append(ingredient_info)
+        
+        # Trier par nom pour un affichage cohérent
+        all_ingredients.sort(key=lambda x: x['nom'].lower())
+        
+        # Statistiques
+        total_ingredients = len(all_ingredients)
+        available_count = sum(1 for ing in all_ingredients if ing['statut'] == 'Disponible')
+        low_stock_count = sum(1 for ing in all_ingredients if ing['statut'] == 'Stock bas')
+        out_of_stock_count = sum(1 for ing in all_ingredients if ing['statut'] == 'Rupture de stock')
+        expiring_count = sum(1 for ing in all_ingredients if ing['statut'] == 'Expire bientôt')
+        expired_count = sum(1 for ing in all_ingredients if ing['statut'] == 'Expiré')
+        
+        return JsonResponse({
+            'ingredients': all_ingredients,
+            'statistics': {
+                'total': total_ingredients,
+                'disponible': available_count,
+                'stock_bas': low_stock_count,
+                'rupture_stock': out_of_stock_count,
+                'expire_bientot': expiring_count,
+                'expire': expired_count
+            }
+        }, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des ingrédients: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def commencer_commande(request, order_id):
+    """
+    Commencer une commande : 
+    - Change l'état de 'en_attente' à 'en_preparation'
+    - Diminue les quantités d'ingrédients selon les plats commandés
+    - Crée une notification pour le client
+    """
+    try:
+        # 1. Vérifier que la commande existe et est en attente
+        commande_ref = db.collection('commandes').document(order_id)
+        commande_doc = commande_ref.get()
+        
+        if not commande_doc.exists:
+            return JsonResponse({'error': 'Commande non trouvée'}, status=404)
+        
+        commande_data = commande_doc.to_dict()
+        
+        if commande_data.get('etat') != 'en_attente':
+            return JsonResponse({
+                'error': f'La commande doit être en attente pour être commencée. État actuel: {commande_data.get("etat")}'
+            }, status=400)
+        
+        # 2. Récupérer les plats de la commande depuis commandes_plat
+        commandes_plat_query = db.collection('commandes_plat').where('idCmd', '==', order_id)
+        commandes_plat_docs = commandes_plat_query.stream()
+        
+        plats_commandes = []
+        for doc in commandes_plat_docs:
+            plat_data = doc.to_dict()
+            plats_commandes.append({
+                'idP': plat_data.get('idP'),
+                'quantite': plat_data.get('quantite', 1)
+            })
+        
+        if not plats_commandes:
+            return JsonResponse({'error': 'Aucun plat trouvé pour cette commande'}, status=400)
+        
+        # 3. Pour chaque plat, récupérer ses ingrédients et calculer les quantités totales nécessaires
+        ingredients_totaux = {}  # {nom_ingredient: quantite_totale_necessaire}
+        
+        for plat_commande in plats_commandes:
+            plat_id = plat_commande['idP']
+            quantite_plat = plat_commande['quantite']
+            
+            # Récupérer les ingrédients du plat
+            plat_ingredients_ref = db.collection('plat_ingredients').document(plat_id)
+            plat_ingredients_doc = plat_ingredients_ref.get()
+            
+            if plat_ingredients_doc.exists:
+                plat_ingredients_data = plat_ingredients_doc.to_dict()
+                ingredients_plat = plat_ingredients_data.get('ingredients', [])
+                
+                for ingredient in ingredients_plat:
+                    nom_ingredient = ingredient.get('nom')
+                    quantite_unitaire = ingredient.get('quantite_g', 0)
+                    
+                    if nom_ingredient:
+                        quantite_totale = quantite_unitaire * quantite_plat
+                        
+                        if nom_ingredient in ingredients_totaux:
+                            ingredients_totaux[nom_ingredient] += quantite_totale
+                        else:
+                            ingredients_totaux[nom_ingredient] = quantite_totale
+        
+        # 4. Récupérer tous les ingrédients disponibles pour comparaison par nom
+        ingredients_collection = db.collection('ingredients').stream()
+        ingredients_disponibles = {}  # {nom_ingredient: {ref: doc_ref, data: doc_data}}
+        
+        for ingredient_doc in ingredients_collection:
+            ingredient_data = ingredient_doc.to_dict()
+            nom_ingredient = ingredient_data.get('nom')
+            if nom_ingredient:
+                ingredients_disponibles[nom_ingredient] = {
+                    'ref': ingredient_doc.reference,
+                    'data': ingredient_data
+                }
+        
+        # 5. Vérifier la disponibilité des ingrédients avant de les diminuer
+        ingredients_insuffisants = []
+        
+        for nom_ingredient, quantite_necessaire in ingredients_totaux.items():
+            if nom_ingredient in ingredients_disponibles:
+                quantite_disponible = ingredients_disponibles[nom_ingredient]['data'].get('quantite', 0)
+                
+                if quantite_disponible < quantite_necessaire:
+                    ingredients_insuffisants.append({
+                        'nom': nom_ingredient,
+                        'disponible': quantite_disponible,
+                        'necessaire': quantite_necessaire
+                    })
+            else:
+                ingredients_insuffisants.append({
+                    'nom': nom_ingredient,
+                    'disponible': 0,
+                    'necessaire': quantite_necessaire
+                })
+        
+        if ingredients_insuffisants:
+            return JsonResponse({
+                'error': 'Stock insuffisant pour certains ingrédients',
+                'ingredients_insuffisants': ingredients_insuffisants
+            }, status=400)
+        
+        # 6. Commencer une transaction pour garantir la cohérence
+        batch = db.batch()
+        
+        # 6a. Changer l'état de la commande
+        batch.update(commande_ref, {
+            'etat': 'en_preparation',
+            'dateModification': firestore.SERVER_TIMESTAMP
+        })
+        
+        # 6b. Diminuer les quantités d'ingrédients (comparaison par nom)
+        for nom_ingredient, quantite_necessaire in ingredients_totaux.items():
+            if nom_ingredient in ingredients_disponibles:
+                ingredient_ref = ingredients_disponibles[nom_ingredient]['ref']
+                ingredient_data = ingredients_disponibles[nom_ingredient]['data']
+                nouvelle_quantite = ingredient_data.get('quantite', 0) - quantite_necessaire
+                
+                batch.update(ingredient_ref, {
+                    'quantite': max(0, nouvelle_quantite),  # S'assurer que la quantité ne soit pas négative
+                    'updatedAt': firestore.SERVER_TIMESTAMP
+                })
+        
+        # 6c. Créer une notification pour le client
+        client_id = commande_data.get('idC')  # ID du client depuis la commande
+        
+        if client_id:
+            notification_ref = db.collection('notifications').document()
+            notification_data = {
+                'title': 'Commande en préparation',
+                'message': f'Votre commande #{order_id} est maintenant en cours de préparation. Nos chefs s\'en occupent !',
+                'type': 'order_preparation',
+                'priority': 'normal',
+                'read': False,
+                'recipient_id': client_id,
+                'recipient_type': 'client',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'order_id': order_id
+            }
+            batch.set(notification_ref, notification_data)
+        
+        # 7. Exécuter toutes les opérations
+        batch.commit()
+        
+        logger.info(f"Commande {order_id} commencée avec succès")
+        
+        # 8. Préparer la réponse
+        response_data = {
+            'message': 'Commande commencée avec succès',
+            'order_id': order_id,
+            'etat': 'en_preparation',
+            'ingredients_utilises': [
+                {
+                    'nom': nom,
+                    'quantite_utilisee': quantite
+                }
+                for nom, quantite in ingredients_totaux.items()
+            ]
+        }
+        
+        if client_id:
+            response_data['notification_envoyee'] = True
+            response_data['client_id'] = client_id
+        
+        return JsonResponse(response_data, status=200)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors du commencement de la commande {order_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def terminer_commande(request, order_id):
+    """
+    Terminer une commande :
+    - Change l'état de 'en_preparation' à 'pret'
+    - Envoie une notification au client que la commande est prête
+    - Envoie une notification au serveur pour le service
+    - Vérifie les alertes d'ingrédients (expiration, stock faible)
+    """
+    try:
+        # 1. Vérifier que la commande existe et est en préparation
+        commande_ref = db.collection('commandes').document(order_id)
+        commande_doc = commande_ref.get()
+        
+        if not commande_doc.exists:
+            return JsonResponse({'error': 'Commande non trouvée'}, status=404)
+        
+        commande_data = commande_doc.to_dict()
+        
+        if commande_data.get('etat') != 'en_preparation':
+            return JsonResponse({
+                'error': f'La commande doit être en préparation pour être terminée. État actuel: {commande_data.get("etat")}'
+            }, status=400)
+        
+        client_id = commande_data.get('idC')
+        table_id = commande_data.get('idTable')
+        
+        # 2. Commencer une transaction
+        batch = db.batch()
+        
+        # 2a. Changer l'état de la commande à 'pret'
+        batch.update(commande_ref, {
+            'etat': 'pret',
+            'dateModification': firestore.SERVER_TIMESTAMP
+        })
+        
+        # 2b. Créer une notification pour le client
+        if client_id:
+            client_notification_ref = db.collection('notifications').document()
+            client_notification_data = {
+                'title': 'Commande prête !',
+                'message': f'Votre commande est prête ! Un serveur va bientôt vous l\'apporter.',
+                'type': 'order_ready',
+                'priority': 'high',
+                'read': False,
+                'recipient_id': client_id,
+                'recipient_type': 'client',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'related_id': order_id
+            }
+            batch.set(client_notification_ref, client_notification_data)
+        
+        # 2c. Créer une notification pour le serveur
+        serveur_notification_ref = db.collection('notifications').document()
+        serveur_notification_data = {
+            'title': 'Commande prête',
+            'message': f'La commande pour la table {table_id} est prête à être servie.',
+            'type': 'order_ready',
+            'priority': 'high',
+            'read': False,
+            'recipient_id': 'employe1',  # Vous pouvez adapter selon votre système
+            'recipient_type': 'serveur',
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'related_id': order_id
+        }
+        batch.set(serveur_notification_ref, serveur_notification_data)
+        
+        # 3. Exécuter la transaction
+        batch.commit()
+        
+        # 4. Vérifier les alertes d'ingrédients après la commande
+        alertes_ingredients = []
+        
+        # Récupérer tous les ingrédients pour vérification
+        ingredients_query = db.collection('ingredients').stream()
+        
+        for ingredient_doc in ingredients_query:
+            ingredient_data = ingredient_doc.to_dict()
+            nom_ingredient = ingredient_doc.id
+            
+            quantite = ingredient_data.get('quantite', 0)
+            seuil_alerte = ingredient_data.get('seuil_alerte', 1)
+            date_expiration_str = ingredient_data.get('date_expiration')
+            
+            # Vérifier le stock faible
+            if quantite <= seuil_alerte:
+                alertes_ingredients.append({
+                    'nom': nom_ingredient,
+                    'type': 'stock_faible',
+                    'quantite_actuelle': quantite,
+                    'seuil': seuil_alerte
+                })
+            
+            # Vérifier la date d'expiration
+            if date_expiration_str:
+                try:
+                    from datetime import datetime, timedelta
+                    date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d')
+                    aujourd_hui = datetime.now()
+                    difference = (date_expiration - aujourd_hui).days
+                    
+                    if difference < 0:
+                        alertes_ingredients.append({
+                            'nom': nom_ingredient,
+                            'type': 'expire',
+                            'date_expiration': date_expiration_str,
+                            'jours_expires': abs(difference)
+                        })
+                    elif difference <= 2:  # Proche d'expirer (2 jours ou moins)
+                        alertes_ingredients.append({
+                            'nom': nom_ingredient,
+                            'type': 'proche_expiration',
+                            'date_expiration': date_expiration_str,
+                            'jours_restants': difference
+                        })
+                except ValueError:
+                    pass  # Format de date invalide, ignorer
+        
+        # 5. Envoyer des notifications d'alerte au cuisinier si nécessaire
+        if alertes_ingredients:
+            for alerte in alertes_ingredients:
+                alerte_notification_ref = db.collection('notifications').document()
+                
+                if alerte['type'] == 'stock_faible':
+                    message = f"Stock faible pour {alerte['nom']}: {alerte['quantite_actuelle']} restant(s) (seuil: {alerte['seuil']})"
+                    title = "Alerte stock faible"
+                elif alerte['type'] == 'expire':
+                    message = f"Ingrédient expiré: {alerte['nom']} (expiré depuis {alerte['jours_expires']} jour(s))"
+                    title = "Ingrédient expiré"
+                else:  # proche_expiration
+                    message = f"Ingrédient bientôt expiré: {alerte['nom']} (expire dans {alerte['jours_restants']} jour(s))"
+                    title = "Expiration proche"
+                
+                alerte_notification_data = {
+                    'title': title,
+                    'message': message,
+                    'type': 'ingredient_alert',
+                    'priority': 'high' if alerte['type'] == 'expire' else 'normal',
+                    'read': False,
+                    'recipient_id': request.user.uid,  # Le cuisinier actuel
+                    'recipient_type': 'chef',
+                    'created_at': firestore.SERVER_TIMESTAMP
+                }
+                alerte_notification_ref.set(alerte_notification_data)
+        
+        logger.info(f"Commande {order_id} terminée avec succès")
+        
+        # 6. Préparer la réponse
+        response_data = {
+            'message': 'Commande terminée avec succès',
+            'order_id': order_id,
+            'etat': 'pret',
+            'notifications_envoyees': {
+                'client': bool(client_id),
+                'serveur': True
+            }
+        }
+        
+        if alertes_ingredients:
+            response_data['alertes_ingredients'] = alertes_ingredients
+            response_data['alertes_envoyees'] = len(alertes_ingredients)
+        
+        return JsonResponse(response_data, status=200)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la finalisation de la commande {order_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def notifier_commande_annulee(request, order_id):
+    """
+    Notifier le cuisinier qu'une commande a été annulée
+    Cette API est appelée quand l'état d'une commande passe à 'annulee'
+    """
+    try:
+        # 1. Vérifier que la commande existe et est annulée
+        commande_ref = db.collection('commandes').document(order_id)
+        commande_doc = commande_ref.get()
+        
+        if not commande_doc.exists:
+            return JsonResponse({'error': 'Commande non trouvée'}, status=404)
+        
+        commande_data = commande_doc.to_dict()
+        
+        if commande_data.get('etat') != 'annulee':
+            return JsonResponse({
+                'error': f'La commande doit être annulée. État actuel: {commande_data.get("etat")}'
+            }, status=400)
+        
+        table_id = commande_data.get('idTable')
+        client_id = commande_data.get('idC')
+        
+        # 2. Créer une notification pour le cuisinier
+        notification_ref = db.collection('notifications').document()
+        notification_data = {
+            'title': 'Commande annulée',
+            'message': f'La commande #{order_id} pour la table {table_id} a été annulée par le client.',
+            'type': 'order_cancelled',
+            'priority': 'normal',
+            'read': False,
+            'recipient_id': 'chef1',  # Adapter selon votre système d'identification des chefs
+            'recipient_type': 'chef',
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'related_id': order_id
+        }
+        
+        notification_ref.set(notification_data)
+        
+        logger.info(f"Notification d'annulation envoyée pour la commande {order_id}")
+        
+        return JsonResponse({
+            'message': 'Notification d\'annulation envoyée au cuisinier',
+            'order_id': order_id,
+            'notification_envoyee': True
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'envoi de la notification d'annulation pour {order_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+
+
+# Fonction utilitaire pour vérifier les alertes d'ingrédients (peut être appelée séparément)
+@api_view(['GET'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+def verifier_alertes_ingredients(request):
+    """
+    API pour vérifier manuellement toutes les alertes d'ingrédients
+    """
+    try:
+        alertes = []
+        ingredients_query = db.collection('ingredients').stream()
+        
+        for ingredient_doc in ingredients_query:
+            ingredient_data = ingredient_doc.to_dict()
+            nom_ingredient = ingredient_doc.id
+            
+            quantite = ingredient_data.get('quantite', 0)
+            seuil_alerte = ingredient_data.get('seuil_alerte', 1)
+            date_expiration_str = ingredient_data.get('date_expiration')
+            
+            # Vérifier le stock faible
+            if quantite <= seuil_alerte:
+                alertes.append({
+                    'nom': nom_ingredient,
+                    'type': 'stock_faible',
+                    'quantite_actuelle': quantite,
+                    'seuil': seuil_alerte,
+                    'severity': 'high' if quantite == 0 else 'medium'
+                })
+            
+            # Vérifier la date d'expiration
+            if date_expiration_str:
+                try:
+                    from datetime import datetime
+                    date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d')
+                    aujourd_hui = datetime.now()
+                    difference = (date_expiration - aujourd_hui).days
+                    
+                    if difference < 0:
+                        alertes.append({
+                            'nom': nom_ingredient,
+                            'type': 'expire',
+                            'date_expiration': date_expiration_str,
+                            'jours_expires': abs(difference),
+                            'severity': 'critical'
+                        })
+                    elif difference <= 2:
+                        alertes.append({
+                            'nom': nom_ingredient,
+                            'type': 'proche_expiration',
+                            'date_expiration': date_expiration_str,
+                            'jours_restants': difference,
+                            'severity': 'medium'
+                        })
+                except ValueError:
+                    pass
+        
+        return JsonResponse({
+            'alertes': alertes,
+            'nombre_total': len(alertes),
+            'critique': len([a for a in alertes if a.get('severity') == 'critical']),
+            'important': len([a for a in alertes if a.get('severity') == 'high']),
+            'moyen': len([a for a in alertes if a.get('severity') == 'medium'])
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification des alertes: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+    
+
+@api_view(['PUT'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def annuler_commande(request, order_id):
+    """
+    Annuler une commande par le chef
+    La commande doit être en statut 'en_attente' ou 'en_preparation'
+    Envoie une notification au client
+    """
+    try:
+        data = json.loads(request.body)
+        motif_annulation = data.get('motif', 'Annulée par la cuisine')
+        
+        # Récupérer la commande
+        order_ref = db.collection('commandes').document(order_id)
+        order_doc = order_ref.get()
+        
+        if not order_doc.exists:
+            return JsonResponse({'error': 'Commande non trouvée'}, status=404)
+        
+        order_data = order_doc.to_dict()
+        current_status = order_data.get('etat', '').lower()
+        
+        # Vérifier si la commande peut être annulée
+        allowed_statuses = ['en_attente', 'en attente', 'pending', 'en_preparation', 'en preparation', 'preparing']
+        if current_status not in allowed_statuses:
+            return JsonResponse({
+                'error': f'Impossible d\'annuler une commande avec le statut: {current_status}. '
+                         'Seules les commandes en attente ou en préparation peuvent être annulées.'
+            }, status=400)
+        
+        # Mettre à jour le statut de la commande
+        order_ref.update({
+            'etat': 'annulee',
+            'date_annulation': firestore.SERVER_TIMESTAMP,
+            'motif_annulation': motif_annulation,
+            'annulee_par': 'cuisine'
+        })
+        
+        # Récupérer les informations du client
+        client_id = order_data.get('idC')
+        if not client_id:
+            logger.warning(f"Aucun client trouvé pour la commande {order_id}")
+            return JsonResponse({
+                'message': 'Commande annulée avec succès',
+                'warning': 'Impossible d\'envoyer la notification: client non trouvé'
+            })
+        
+        # Créer la notification pour le client
+        try:
+            notification_data = {
+                'title': 'Commande annulée',
+                'message': f'Votre commande #{order_id} a été annulée par la cuisine. '
+                          f'Motif: {motif_annulation}. '
+                          'Veuillez demander de l\'assistance pour plus d\'informations.',
+                'type': 'order_cancelled',
+                'priority': 'high',
+                'recipient_type': 'client',
+                'recipient_id': client_id,
+                'related_id': order_id,
+                'read': False,
+                'created_at': firestore.SERVER_TIMESTAMP
+            }
+            
+            # Ajouter la notification à la collection
+            db.collection('notifications').add(notification_data)
+            logger.info(f"Notification d'annulation envoyée au client {client_id} pour la commande {order_id}")
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de la notification: {str(e)}")
+            return JsonResponse({
+                'message': 'Commande annulée avec succès',
+                'warning': f'Erreur lors de l\'envoi de la notification: {str(e)}'
+            })
+        
+        # Libérer la table si elle est associée
+        try:
+            table_id = order_data.get('idTable')
+            if table_id:
+                table_ref = db.collection('tables').document(table_id)
+                table_doc = table_ref.get()
+                if table_doc.exists:
+                    table_ref.update({'etatTable': 'libre'})
+                    logger.info(f"Table {table_id} libérée suite à l'annulation de la commande {order_id}")
+        except Exception as e:
+            logger.warning(f"Erreur lors de la libération de la table: {str(e)}")
+        
+        # Enregistrer l'action du chef
+        try:
+            user = request.user
+            chef_id = user.uid
+            
+            # Récupérer l'ID employé du chef
+            employees_ref = db.collection('employes').where('firebase_uid', '==', chef_id).limit(1)
+            employees_docs = list(employees_ref.stream())
+            
+            if employees_docs:
+                employee_id = employees_docs[0].id
+                
+                # Enregistrer l'action dans un log (optionnel)
+                action_log = {
+                    'action': 'annulation_commande',
+                    'order_id': order_id,
+                    'chef_id': employee_id,
+                    'motif': motif_annulation,
+                    'timestamp': firestore.SERVER_TIMESTAMP,
+                    'previous_status': current_status
+                }
+                db.collection('chef_actions').add(action_log)
+                
+        except Exception as e:
+            logger.warning(f"Erreur lors de l'enregistrement de l'action: {str(e)}")
+        
+        # Réponse de succès
+        return JsonResponse({
+            'message': 'Commande annulée avec succès',
+            'order_id': order_id,
+            'previous_status': current_status,
+            'new_status': 'annulee',
+            'motif': motif_annulation,
+            'notification_sent': True
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Format JSON invalide'}, status=400)
+    except Exception as e:
+        logger.error(f"Erreur lors de l'annulation de la commande {order_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@api_view(['GET'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+def get_plats_by_categorie(request, categorie_id):
+    """
+    Récupérer tous les plats d'une catégorie spécifique
+    """
+    try:
+        # Vérifier que la catégorie existe
+        categorie_ref = db.collection('categories').document(categorie_id)
+        categorie_doc = categorie_ref.get()
+        
+        if not categorie_doc.exists:
+            return JsonResponse({'error': 'Catégorie non trouvée'}, status=404)
+        
+        # Récupérer les plats de cette catégorie
+        plats_ref = db.collection('plats').where('idCat', '==', categorie_id)
+        plats = []
+        
+        for plat_doc in plats_ref.stream():
+            plat_data = plat_doc.to_dict()
+            plat_data['id'] = plat_doc.id
+            plats.append(plat_data)
+        
+        # Récupérer le nom de la catégorie
+        categorie_data = categorie_doc.to_dict()
+        
+        return JsonResponse({
+            'categorie_id': categorie_id,
+            'categorie_nom': categorie_data.get('nom', 'Unknown'),
+            'plats': plats,
+            'count': len(plats)
+        }, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error fetching plats by categorie: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+@api_view(['GET'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+def get_plats_by_sous_categorie(request, sous_categorie_id):
+    """
+    Récupérer tous les plats d'une sous-catégorie spécifique
+    """
+    try:
+        # Vérifier que la sous-catégorie existe
+        sous_categorie_ref = db.collection('sous_categories').document(sous_categorie_id)
+        sous_categorie_doc = sous_categorie_ref.get()
+        
+        if not sous_categorie_doc.exists:
+            return JsonResponse({'error': 'Sous-catégorie non trouvée'}, status=404)
+        
+        # Récupérer les plats de cette sous-catégorie
+        plats_ref = db.collection('plats').where('idSousCat', '==', sous_categorie_id)
+        plats = []
+        
+        for plat_doc in plats_ref.stream():
+            plat_data = plat_doc.to_dict()
+            plat_data['id'] = plat_doc.id
+            plats.append(plat_data)
+        
+        # Récupérer le nom de la sous-catégorie
+        sous_categorie_data = sous_categorie_doc.to_dict()
+        
+        return JsonResponse({
+            'sous_categorie_id': sous_categorie_id,
+            'sous_categorie_nom': sous_categorie_data.get('nom', 'Unknown'),
+            'plats': plats,
+            'count': len(plats)
+        }, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error fetching plats by sous-categorie: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
