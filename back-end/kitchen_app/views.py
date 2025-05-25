@@ -296,7 +296,7 @@ def get_chef_notifications(request):
             employee_id = user_id
         
         # Query notifications for this chef
-        notifications_ref = db.collection('notifications').where('recipient_id', '==', employee_id)
+        notifications_ref = db.collection('notifications').where('recipient_type', '==', 'chef' or 'cuisinier' or 'cuisine')
         notifications = []
         
         for doc in notifications_ref.stream():
