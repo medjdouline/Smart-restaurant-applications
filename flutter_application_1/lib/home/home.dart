@@ -54,7 +54,7 @@ class RestaurantHomePage extends StatelessWidget {
                           const SizedBox(height: 24),
                           
                           Text(
-                            'Good Taste !',
+                            'Feuille de L\'Aures ',
                             style: GoogleFonts.inknutAntiqua(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,

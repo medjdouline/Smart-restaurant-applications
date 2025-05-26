@@ -690,6 +690,111 @@ def get_notifications(request):
         logger.error(f"Error getting notifications: {str(e)}")  # This will show the actual error
         return Response({'error': f'Failed to retrieve notifications: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+
+@api_view(['PATCH'])
+@permission_classes([IsClient])
+def mark_notification_as_read(request, notification_id):
+    """Mark a specific notification as read"""
+    try:
+        client_id = request.user.uid
+        
+        # First, check if the notification exists and belongs to the client
+        notification = firebase_crud.get_document('notifications', notification_id)
+        
+        if not notification:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if the notification belongs to the current user
+        if notification.get('recipient_id') != client_id:
+            return Response({'error': 'Unauthorized access to notification'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Update the notification to mark as read
+        update_data = {
+            'read': True,
+            'read_at': datetime.now().isoformat()
+        }
+        
+        success = firebase_crud.update_document('notifications', notification_id, update_data)
+        
+        if success:
+            return Response({'message': 'Notification marked as read successfully'})
+        else:
+            return Response({'error': 'Failed to update notification'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {str(e)}")
+        return Response({'error': f'Failed to mark notification as read: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsClient])
+def mark_all_notifications_as_read(request):
+    """Mark all notifications as read for the current client"""
+    try:
+        client_id = request.user.uid
+        
+        # Get all unread notifications for the client
+        unread_notifications = firebase_crud.query_collection(
+            'notifications',
+            'recipient_id',
+            '==',
+            client_id,
+            additional_filters=[('read', '==', False)]
+        )
+        
+        # Update each unread notification
+        updated_count = 0
+        for notification in unread_notifications:
+            update_data = {
+                'read': True,
+                'read_at': datetime.now().isoformat()
+            }
+            
+            success = firebase_crud.update_document('notifications', notification['id'], update_data)
+            if success:
+                updated_count += 1
+        
+        return Response({
+            'message': f'Successfully marked {updated_count} notifications as read',
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error marking all notifications as read: {str(e)}")
+        return Response({'error': f'Failed to mark all notifications as read: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsClient])
+def delete_notification(request, notification_id):
+    """Delete a specific notification"""
+    try:
+        client_id = request.user.uid
+        
+        # First, check if the notification exists and belongs to the client
+        notification = firebase_crud.get_document('notifications', notification_id)
+        
+        if not notification:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if the notification belongs to the current user
+        if notification.get('recipient_id') != client_id:
+            return Response({'error': 'Unauthorized access to notification'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Delete the notification
+        success = firebase_crud.delete_document('notifications', notification_id)
+        
+        if success:
+            return Response({'message': 'Notification deleted successfully'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Failed to delete notification'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        logger.error(f"Error deleting notification: {str(e)}")
+        return Response({'error': f'Failed to delete notification: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+    
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_notification_details(request, notification_id):

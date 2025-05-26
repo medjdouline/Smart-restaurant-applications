@@ -15,6 +15,8 @@ import 'menu_cart.dart';
 import '../services/menu_service.dart';
 import '../models/item.dart';
 import '../points_fidelite_widget.dart';
+import 'package:provider/provider.dart';
+import './notifications.dart';
 
 class MenuAcceuil extends StatefulWidget {
   const MenuAcceuil({Key? key}) : super(key: key);
@@ -29,6 +31,8 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
   Item? _selectedPlat;
   double _currentRating = 0;
   List<String> notifications = [];
+  List<NotificationModel> detailedNotifications = []; // New list for detailed notifications
+  bool isLoadingNotifications = false;
 
   @override
   void initState() {
@@ -51,22 +55,53 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
     await menuService.loadMenuData();
   }
 
-  Future<void> _loadNotifications() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+Future<void> _loadNotifications() async {
+    final userService = Provider.of<UserService>(context, listen: false);
+    
+    // Don't load notifications for guest users
+    if (userService.isGuest || !userService.isLoggedIn) {
+      debugPrint('Guest user or not logged in - skipping notifications');
+      return;
+    }
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('timestamp', descending: true)
-        .limit(5)
-        .get();
+    try {
+      setState(() {
+        isLoadingNotifications = true;
+      });
 
-    setState(() {
-      notifications = snapshot.docs
-          .map((doc) => doc.data()['message'] as String)
-          .toList();
-    });
+      debugPrint('Loading notifications...');
+      final loadedNotifications = await userService.loadNotifications();
+      
+      setState(() {
+        detailedNotifications = loadedNotifications;
+        // Convert to simple string list for backward compatibility
+        notifications = loadedNotifications
+            .take(5) // Limit to 5 like before
+            .map((n) => n.message)
+            .toList();
+        isLoadingNotifications = false;
+      });
+
+      debugPrint('Notifications loaded successfully: ${notifications.length}');
+    } catch (e) {
+      debugPrint('Error loading notifications: $e');
+      setState(() {
+        isLoadingNotifications = false;
+        notifications = ['Erreur de chargement des notifications'];
+      });
+    }
+  }
+   Future<void> _refreshNotifications() async {
+    await _loadNotifications();
+  }
+   Future<void> _markNotificationAsRead(NotificationModel notification) async {
+    final userService = Provider.of<UserService>(context, listen: false);
+    
+    if (!notification.read) {
+      await userService.markNotificationAsRead(notification.id);
+      // Refresh the list to show updated read status
+      await _loadNotifications();
+    }
   }
 
   @override
@@ -102,31 +137,14 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
   }
 
   void _showNotifications() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Notifications'),
-        content: notifications.isEmpty
-            ? const Text('Aucune nouvelle notification')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: notifications
-                    .map((notif) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text('• $notif'),
-                        ))
-                    .toList(),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Navigation vers la nouvelle page de notifications au lieu d'une dialog
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const NotificationsPage(),
+    ),
+  );
+}
 
   Future<void> _showAssistanceDialog() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -933,6 +951,7 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
     final cartService = Provider.of<CartService>(context);
     final ratingService = Provider.of<RatingService>(context, listen: false);
     final menuService = Provider.of<MenuService>(context);
+    
 
     return Scaffold(
       body: Stack(
@@ -955,7 +974,7 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'la feuille de aures',
+                            'Feuille de l\'aures',
                             style: GoogleFonts.playfairDisplay(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -1105,5 +1124,183 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
         ],
       ),
     );
+  }
+   Widget _buildNotificationsSection(UserService userService) {
+    return Card(
+      margin: EdgeInsets.all(16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Notifications',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (userService.unreadNotificationsCount > 0)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${userService.unreadNotificationsCount}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            SizedBox(height: 12),
+            
+            if (isLoadingNotifications)
+              Center(child: CircularProgressIndicator())
+            else if (detailedNotifications.isEmpty)
+              Text(
+                userService.isGuest 
+                  ? 'Connectez-vous pour voir vos notifications'
+                  : 'Aucune notification',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else
+              ...detailedNotifications.take(5).map((notification) => 
+                _buildNotificationTile(notification)
+              ).toList(),
+            
+            if (detailedNotifications.length > 5)
+              TextButton(
+                onPressed: () {
+                  // Navigate to full notifications page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationsPage(),
+                    ),
+                  );
+                },
+                child: Text('Voir toutes les notifications'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationTile(NotificationModel notification) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => _markNotificationAsRead(notification),
+        child: Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: notification.read ? Colors.grey[50] : Colors.blue[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: notification.read ? Colors.grey[200]! : Colors.blue[200]!,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _getNotificationIcon(notification.type),
+                color: notification.read ? Colors.grey : Colors.blue,
+                size: 20,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (notification.title.isNotEmpty)
+                      Text(
+                        notification.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    Text(
+                      notification.message,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (notification.createdAt.isNotEmpty)
+                      Text(
+                        _formatNotificationTime(notification.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (!notification.read)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getNotificationIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'order':
+        return Icons.shopping_cart;
+      case 'promotion':
+        return Icons.local_offer;
+      case 'system':
+        return Icons.info;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  String _formatNotificationTime(String createdAt) {
+    try {
+      final dateTime = DateTime.parse(createdAt);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inMinutes < 1) {
+        return 'À l\'instant';
+      } else if (difference.inHours < 1) {
+        return 'Il y a ${difference.inMinutes}min';
+      } else if (difference.inDays < 1) {
+        return 'Il y a ${difference.inHours}h';
+      } else if (difference.inDays < 7) {
+        return 'Il y a ${difference.inDays}j';
+      } else {
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      }
+    } catch (e) {
+      return '';
+    }
   }
 }

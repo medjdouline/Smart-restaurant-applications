@@ -1156,7 +1156,7 @@ def commencer_commande(request, order_id):
             notification_ref = db.collection('notifications').document()
             notification_data = {
                 'title': 'Commande en préparation',
-                'message': f'Votre commande #{order_id} est maintenant en cours de préparation. Nos chefs s\'en occupent !',
+                'message': f'Votre commande est maintenant en cours de préparation. Nos chefs s\'en occupent !',
                 'type': 'order_preparation',
                 'priority': 'normal',
                 'read': False,

@@ -35,7 +35,8 @@ urlpatterns = [
     # Menu endpoints
     path('menus/', views.get_menus, name='get_menus'), 
     path('categories/', views.get_categories, name='get_categories'),  #renvoie les categories
-    path('categories/</str:category_id>sub-categories/', views.get_subcategories, name='get_subcategories'), #specifie categorie et renvoie les sous categories
+    path('categories/<str:category_id>/sub-categories/', views.get_subcategories, name='get_subcategories'),
+ #specifie categorie et renvoie les sous categories
     path('plats/<str:plat_id>/', views.get_plat_details, name='get_plat_details'), #renvoie des detils d'un plat
     path('plats/<str:plat_id>/similar/', views.get_similar_dishes, name='get_similar_dishes'), #marakch dayrha
    
@@ -53,7 +54,10 @@ urlpatterns = [
     path('recommendations/<str:recommendation_id>/', views.get_recommendation_details, name='get_recommendation_details'),
     
     # Notifications endpoints
-    path('notifications/', views.get_notifications, name='get_notifications'),#moi
+    path('notifications/', views.get_notifications, name='get_notifications'),
+    path('notifications/<str:notification_id>/read/', views.mark_notification_as_read, name='mark_notification_as_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_as_read, name='mark_all_notifications_as_read'),
+    path('notifications/<str:notification_id>/', views.delete_notification, name='delete_notification'),
     path('notifications/<str:notification_id>/', views.get_notification_details, name='get_notification_details'),#moi
 
 

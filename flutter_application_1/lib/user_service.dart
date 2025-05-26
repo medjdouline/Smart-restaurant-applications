@@ -17,7 +17,9 @@ class UserService with ChangeNotifier {
   String? _email; // ADD THIS LINE - new field to store email from API
   String? _phone;
   String? _photoUrl;
-  
+  List<NotificationModel> _notifications = [];
+  int _unreadNotificationsCount = 0;
+
   final List<String> _diets = [];
   final List<String> _allergies = [];
   final List<String> _preferences = [];
@@ -46,6 +48,10 @@ class UserService with ChangeNotifier {
   bool get isGuest => _isGuest;
   List<String> get diets => List.unmodifiable(_diets);
   List<String> get allergies => List.unmodifiable(_allergies);
+  List<NotificationModel> get notifications => List.unmodifiable(_notifications);
+  int get unreadNotificationsCount => _unreadNotificationsCount;
+
+
   List<String> get preferences => List.unmodifiable(_preferences);
   bool get isAuthenticated => _idToken != null && !_isGuest;
 Future<bool> login(String identifier, String password) async {
@@ -251,30 +257,38 @@ Future<void> savePersonalInfo({
   }
 }
 
-  Future<void> updateAllergies(List<String> allergies) async {
-    _allergies
-      ..clear()
-      ..addAll(allergies.where((a) => a.trim().isNotEmpty));
-    
-    if (isLoggedIn) {
-      try {
-        await http.patch(
-          Uri.parse('$_baseUrl/users/${_firebaseUser?.uid ?? 'current'}/preferences/'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_idToken',
-          },
-          body: jsonEncode({
-            'allergies': _allergies,
-          }),
-        );
-        notifyListeners();
-      } catch (e) {
-        debugPrint('Erreur de mise à jour des allergies: $e');
-        rethrow;
-      }
+Future<void> updateAllergies(List<String> allergies) async {
+  if (!isLoggedIn) return;
+
+  try {
+    debugPrint('Updating allergies: $allergies');
+    final response = await http.put(
+      Uri.parse('$_baseUrl/table/allergies/update/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+      body: jsonEncode({
+        'allergies': allergies,
+      }),
+    );
+
+    debugPrint('Update allergies response: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      _allergies
+        ..clear()
+        ..addAll(allergies.where((a) => a.trim().isNotEmpty));
+      notifyListeners();
+    } else {
+      throw Exception('Failed to update allergies: ${response.body}');
     }
+  } catch (e) {
+    debugPrint('Error updating allergies: $e');
+    rethrow;
   }
+}
 
   Future<void> updatePreferences(List<String> preferences) async {
     _preferences
@@ -301,30 +315,38 @@ Future<void> savePersonalInfo({
     }
   }
 
-  Future<void> updateDiets(List<String> diets) async {
-    _diets
-      ..clear()
-      ..addAll(diets.where((d) => d.trim().isNotEmpty));
-    
-    if (isLoggedIn) {
-      try {
-        await http.patch(
-          Uri.parse('$_baseUrl/users/${_firebaseUser?.uid ?? 'current'}/preferences/'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_idToken',
-          },
-          body: jsonEncode({
-            'diets': _diets,
-          }),
-        );
-        notifyListeners();
-      } catch (e) {
-        debugPrint('Erreur de mise à jour des régimes: $e');
-        rethrow;
-      }
+ Future<void> updateDiets(List<String> diets) async {
+  if (!isLoggedIn) return;
+
+  try {
+    debugPrint('Updating dietary restrictions: $diets');
+    final response = await http.put(
+      Uri.parse('$_baseUrl/table/restrictions/update/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+      body: jsonEncode({
+        'restrictions': diets,
+      }),
+    );
+
+    debugPrint('Update restrictions response: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      _diets
+        ..clear()
+        ..addAll(diets.where((d) => d.trim().isNotEmpty));
+      notifyListeners();
+    } else {
+      throw Exception('Failed to update dietary restrictions: ${response.body}');
     }
+  } catch (e) {
+    debugPrint('Error updating dietary restrictions: $e');
+    rethrow;
   }
+}
 
 Future<void> _loadUserDataFromBackend() async {
     if (_idToken == null) {
@@ -765,4 +787,242 @@ String _getFirebaseErrorMessage(FirebaseAuthException e) {
       return 'Authentication failed: ${e.message}';
   }
 }
+Future<List<NotificationModel>> loadNotifications() async {
+  if (!isLoggedIn || isGuest) {
+    debugPrint('Cannot load notifications - user not logged in or is guest');
+    return [];
+  }
+
+  try {
+    debugPrint('Loading notifications from backend...');
+    
+    final response = await http.get(
+      Uri.parse('$_baseUrl/table/notifications/'),
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',  // Added charset
+        'Accept': 'application/json; charset=utf-8',        // Added charset
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    debugPrint('Notifications response: ${response.statusCode}');
+    debugPrint('Response headers: ${response.headers}');
+
+    if (response.statusCode == 200) {
+      // FIXED: Properly decode UTF-8 bytes first, then parse JSON
+      final String decodedBody = utf8.decode(response.bodyBytes);
+      debugPrint('Decoded response body: $decodedBody');
+      
+      final List<dynamic> data = jsonDecode(decodedBody);
+      
+      _notifications = data.map((json) => NotificationModel.fromJson(json)).toList();
+      
+      // Debug: Print first notification to verify encoding
+      if (_notifications.isNotEmpty) {
+        debugPrint('First notification title: ${_notifications.first.title}');
+        debugPrint('First notification message: ${_notifications.first.message}');
+      }
+      
+      // Update unread count
+      _unreadNotificationsCount = _notifications.where((n) => !n.read).length;
+      
+      debugPrint('Loaded ${_notifications.length} notifications, ${_unreadNotificationsCount} unread');
+      
+      notifyListeners();
+      return _notifications;
+    } else {
+      debugPrint('Failed to load notifications: ${response.statusCode} - ${response.body}');
+      throw Exception('Failed to load notifications: ${response.body}');
+    }
+  } catch (e) {
+    debugPrint('Error loading notifications: $e');
+    throw e;
+  }
+}
+Future<bool> markNotificationAsRead(String notificationId) async {
+  if (!isLoggedIn || isGuest) {
+    debugPrint('Cannot mark notification as read - user not logged in or is guest');
+    return false;
+  }
+
+  try {
+    debugPrint('Marking notification $notificationId as read...');
+    
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/table//notifications/$notificationId/read/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    debugPrint('Mark as read response: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      // Update local notification
+      final index = _notifications.indexWhere((n) => n.id == notificationId);
+      if (index != -1) {
+        _notifications[index] = _notifications[index].copyWith(read: true);
+        _unreadNotificationsCount = _notifications.where((n) => !n.read).length;
+        notifyListeners();
+      }
+      
+      debugPrint('Notification marked as read successfully');
+      return true;
+    } else {
+      debugPrint('Failed to mark notification as read: ${response.statusCode} - ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Error marking notification as read: $e');
+    return false;
+  }
+}
+
+/// Mark all notifications as read
+Future<bool> markAllNotificationsAsRead() async {
+  if (!isLoggedIn || isGuest) {
+    debugPrint('Cannot mark all notifications as read - user not logged in or is guest');
+    return false;
+  }
+
+  try {
+    debugPrint('Marking all notifications as read...');
+    
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/table/notifications/mark-all-read/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    debugPrint('Mark all as read response: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      // Update all local notifications
+      _notifications = _notifications.map((n) => n.copyWith(read: true)).toList();
+      _unreadNotificationsCount = 0;
+      notifyListeners();
+      
+      debugPrint('All notifications marked as read successfully');
+      return true;
+    } else {
+      debugPrint('Failed to mark all notifications as read: ${response.statusCode} - ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Error marking all notifications as read: $e');
+    return false;
+  }
+}
+
+/// Delete a notification
+Future<bool> deleteNotification(String notificationId) async {
+  if (!isLoggedIn || isGuest) {
+    debugPrint('Cannot delete notification - user not logged in or is guest');
+    return false;
+  }
+
+  try {
+    debugPrint('Deleting notification $notificationId...');
+    
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/table/notifications/$notificationId/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    debugPrint('Delete notification response: ${response.statusCode}');
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      // Remove from local list
+      final removedNotification = _notifications.firstWhere((n) => n.id == notificationId);
+      _notifications.removeWhere((n) => n.id == notificationId);
+      
+      // Update unread count if the deleted notification was unread
+      if (!removedNotification.read) {
+        _unreadNotificationsCount--;
+      }
+      
+      notifyListeners();
+      
+      debugPrint('Notification deleted successfully');
+      return true;
+    } else {
+      debugPrint('Failed to delete notification: ${response.statusCode} - ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Error deleting notification: $e');
+    return false;
+  }
+}
+
+/// Clear all notifications locally (for logout)
+void _clearNotifications() {
+  _notifications.clear();
+  _unreadNotificationsCount = 0;
+}
+
+
+}
+class NotificationModel {
+  final String id;
+  final String title;
+  final String message;
+  final String createdAt;
+  final bool read;
+  final String type;
+
+  NotificationModel({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.createdAt,
+    required this.read,
+    required this.type,
+  });
+
+  factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    return NotificationModel(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+      read: json['read'] ?? false,
+      type: json['type']?.toString() ?? 'general',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'message': message,
+      'created_at': createdAt,
+      'read': read,
+      'type': type,
+    };
+  }
+
+  NotificationModel copyWith({
+    String? id,
+    String? title,
+    String? message,
+    String? createdAt,
+    bool? read,
+    String? type,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      createdAt: createdAt ?? this.createdAt,
+      read: read ?? this.read,
+      type: type ?? this.type,
+    );
+  }
 }
