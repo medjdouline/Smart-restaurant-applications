@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_application_1/cart_service.dart';
 import 'package:flutter_application_1/services/menu_service.dart';
 import 'package:flutter_application_1/models/item.dart';
+import 'package:flutter_application_1/user_service.dart';
+import 'package:flutter_application_1/points_fidelite_widget.dart';
 
 class AcceuilInvite extends StatefulWidget {
   const AcceuilInvite({Key? key}) : super(key: key);
@@ -28,19 +30,16 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
 
   Future<void> _loadRecommendedPlats() async {
     final menuService = Provider.of<MenuService>(context, listen: false);
-    await menuService.refresh(); // Using refresh() instead of loadMenu()
+    await menuService.refresh();
 
     if (mounted) {
       setState(() {
-        // Get grouped entrees and select 3 from each subcategory
         final groupedEntrees = menuService.groupedEntrees;
         final entrees = groupedEntrees.values
             .expand((plats) => plats.take(3))
             .toList();
 
-        // Similarly for other categories if available in your MenuService
-        // For now, we'll just use entrees as an example
-        _recommendedPlats = entrees.take(12).toList(); // Limit to 12 items
+        _recommendedPlats = entrees.take(12).toList();
       });
     }
   }
@@ -65,6 +64,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
   Widget build(BuildContext context) {
     final cartService = Provider.of<CartService>(context);
     final menuService = Provider.of<MenuService>(context);
+    final userService = Provider.of<UserService>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +72,12 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
         backgroundColor: const Color(0xFFB24516),
         automaticallyImplyLeading: false,
         actions: [
+          // Show loyalty points widget only for logged-in users
+          if (!userService.isGuest)
+            const Padding(
+              padding: EdgeInsets.only(right: 8.0),
+              child: PointsFideliteWidget(),
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -82,7 +88,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
       ),
       body: Stack(
         children: [
-          // Contenu principal
+          // Main content
           Container(
             color: const Color(0xFFDFB976),
             child: Column(
@@ -100,7 +106,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Good Taste !',
+                          'Feuille de l\'Aures',
                           style: GoogleFonts.playfairDisplay(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -108,9 +114,9 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Mode Invité',
-                          style: TextStyle(
+                        Text(
+                          userService.isGuest ? 'Mode Invité' : 'Bienvenue ${userService.nomUtilisateur}',
+                          style: const TextStyle(
                             color: Color(0xFFB24516),
                             fontSize: 16,
                           ),
@@ -120,7 +126,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                   ),
                 ),
                 
-                // Contenu recommandations
+                // Recommendations content
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -151,7 +157,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                           ),
                         ),
                         
-                        // Liste horizontale des plats
+                        // Horizontal list of dishes
                         Expanded(
                           child: menuService.isLoading
                               ? const Center(child: CircularProgressIndicator(color: Color(0xFFB24516)))
@@ -181,7 +187,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                                             },
                                           ),
                                         ),
-                                        // Boutons de défilement
+                                        // Scroll buttons
                                         Positioned(
                                           left: 5,
                                           top: 0,
@@ -244,7 +250,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                                   ),
                         ),
                         
-                        // Bouton menu complet
+                        // Full menu button
                         Padding(
                           padding: const EdgeInsets.only(top: 20.0, bottom: 20.0),
                           child: Center(
@@ -279,18 +285,18 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
             ),
           ),
           
-          // Détails du plat sélectionné
+          // Selected dish details
           if (_selectedPlat != null)
-            _buildPlatDetailCard(cartService),
+            _buildPlatDetailCard(cartService, userService),
             
-          // Bouton panier flottant
+          // Floating cart button
           Positioned(
             bottom: 20,
             right: 20,
             child: _buildCartButton(cartService.items.length),
           ),
           
-          // Bouton "Demander serveur" flottant
+          // Floating "Ask server" button
           Positioned(
             bottom: 90,
             right: 20,
@@ -316,7 +322,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
       ),
       child: Stack(
         children: [
-          // Image du plat
+          // Dish image
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
             child: Container(
@@ -337,7 +343,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
             ),
           ),
           
-          // Gradient pour le texte
+          // Gradient for text
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(15),
@@ -352,7 +358,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
             ),
           ),
           
-          // Contenu texte
+          // Text content
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
@@ -398,7 +404,7 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
     );
   }
 
-  Widget _buildPlatDetailCard(CartService cartService) {
+  Widget _buildPlatDetailCard(CartService cartService, UserService userService) {
     return Positioned.fill(
       child: Container(
         color: Colors.black.withOpacity(0.7),
@@ -492,12 +498,21 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                         pointsFidelite: _selectedPlat!.pointsFidelite,
                       );
                       
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Connectez-vous pour finaliser votre commande'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      if (userService.isGuest) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Connectez-vous pour finaliser votre commande'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Plat ajouté au panier'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
                       _closeDetails();
                     },
                     style: ElevatedButton.styleFrom(

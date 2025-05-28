@@ -213,10 +213,13 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
         width: 150,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          image: DecorationImage(
-            image: AssetImage(plat.image),
-            fit: BoxFit.cover,
-          ),
+          image: plat.image.startsWith('assets/')
+              ? DecorationImage(
+                  image: AssetImage(plat.image),
+                  fit: BoxFit.cover,
+                )
+              : null,
+          color: !plat.image.startsWith('assets/') ? Colors.grey[300] : null,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -237,6 +240,10 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                 ),
               ),
             ),
+            if (!plat.image.startsWith('assets/'))
+              Center(
+                child: _buildPlaceholderImage(),
+              ),
             Positioned(
               top: 5,
               right: 5,
@@ -278,6 +285,18 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
     );
   }
 
+  Widget _buildPlaceholderImage() {
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.grey[400],
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.fastfood, color: Colors.white, size: 30),
+    );
+  }
+
   Widget _buildPlatDetailCard(FavorisService favorisService, CartService cartService, RatingService ratingService) {
     final averageRating = ratingService.getAverageRating(_selectedPlat!.id);
     final ratingCount = ratingService.getRatingCount(_selectedPlat!.id);
@@ -301,12 +320,21 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                     children: [
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                        child: Image.asset(
-                          _selectedPlat!.image,
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
+                        child: _selectedPlat!.image.startsWith('assets/')
+                            ? Image.asset(
+                                _selectedPlat!.image,
+                                height: 200,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                height: 200,
+                                width: double.infinity,
+                                color: Colors.grey[300],
+                                child: Center(
+                                  child: _buildPlaceholderImage(),
+                                ),
+                              ),
                       ),
                       Positioned(
                         top: 10,
@@ -424,7 +452,7 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                             cartService.addItem(
                               id: _selectedPlat!.id,
                               nom: _selectedPlat!.nom,
-                              prix: _selectedPlat!.prix.toDouble(), // ✅ Correction ici
+                              prix: _selectedPlat!.prix.toDouble(),
                               imageUrl: _selectedPlat!.image,
                               pointsFidelite: _selectedPlat!.pointsFidelite,
                             );

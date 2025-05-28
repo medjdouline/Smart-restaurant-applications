@@ -16,7 +16,9 @@ import '../services/menu_service.dart';
 import '../models/item.dart';
 import '../points_fidelite_widget.dart';
 import 'package:provider/provider.dart';
+import '../order_history_service.dart';
 import './notifications.dart';
+import './assistance_button.dart';
 
 class MenuAcceuil extends StatefulWidget {
   const MenuAcceuil({Key? key}) : super(key: key);
@@ -199,11 +201,23 @@ Future<void> _loadNotifications() async {
     }
   }
 
-  Widget _buildNavButton(int index, IconData icon, String label) {
-    bool isSelected = _selectedNavIndex == index;
-    return InkWell(
-      onTap: () => setState(() => _selectedNavIndex = index),
-      child: Container(
+Widget _buildNavButton(int index, IconData icon, String label) {
+  bool isSelected = _selectedNavIndex == index;
+  return InkWell(
+    onTap: () {
+      setState(() => _selectedNavIndex = index);
+      
+      // Specifically handle history tab click
+      if (index == 2) { // Assuming 2 is your history tab index
+        final orderHistory = Provider.of<OrderHistoryService>(context, listen: false);
+        final userService = Provider.of<UserService>(context, listen: false);
+        
+        if (userService.isLoggedIn && !userService.isGuest) {
+          orderHistory.loadOrderHistory();
+        }
+      }
+    },
+    child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
@@ -725,31 +739,11 @@ Future<void> _loadNotifications() async {
     );
   }
 
-  Widget _buildServeurButton() {
-    return GestureDetector(
-      onTap: _showAssistanceDialog,
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          color: Colors.blue[800],
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.person_search,
-          color: Colors.white,
-          size: 30,
-        ),
-      ),
-    );
-  }
+Widget _buildServeurButton() {
+  return QuickAssistanceButton(
+    tableId: Provider.of<UserService>(context, listen: false).tableId,
+  );
+}
 
   Widget _buildContent(MenuService menuService, FavorisService favorisService) {
     if (menuService.isLoading) {

@@ -13,10 +13,12 @@ urlpatterns = [
     path('auth/client/login/', client_login, name='client_login'),
     path('auth/guest/login/', guest_login, name='guest_login'),
     path('logout/', logout, name='logout'),#deja fait
+        path('assistance/create/', views.create_assistance_request, name='create_assistance_request'),
 
     # Profile endpoints
     path('profile/', views.view_client_profile, name='view_client_profile'), #deja fait
     path('profile/update/', views.update_client_profile, name='update_client_profile'), #deja fait
+    path('plats/nouveautes/', views.get_new_plats, name='get_new_plats'),
 
     
     # Orders endpoints
@@ -25,7 +27,6 @@ urlpatterns = [
     path('orders/', views.get_orders_history, name='get_orders_history'), #historique commandes
     path('orders/<str:order_id>/', views.get_order_details, name='get_order_details'), #details d'une commande dans l'historique
     path('orders/<str:order_id>/delete/', views.delete_order_history, name='delete_order_history'), #marakch dayrha
-    
     # Favorites endpoints
     path('favorites/', views.get_favorites, name='get_favorites'), #get (recevoir) favoris
     path('favorites/add/<str:plat_id>/', views.add_favorite, name='add_favorite'), #ajouter aux favoris
@@ -35,10 +36,12 @@ urlpatterns = [
     # Menu endpoints
     path('menus/', views.get_menus, name='get_menus'), 
     path('categories/', views.get_categories, name='get_categories'),  #renvoie les categories
-    path('categories/<str:category_id>/sub-categories/', views.get_subcategories, name='get_subcategories'),
+    path('categories/<str:category_id>/subcategories/', views.get_category_subcategories, name='get_category_subcategories'),
+    path('subcategories/<str:subcategory_id>/items/', views.get_subcategory_items, name='get_subcategory_items'),
  #specifie categorie et renvoie les sous categories
     path('plats/<str:plat_id>/', views.get_plat_details, name='get_plat_details'), #renvoie des detils d'un plat
     path('plats/<str:plat_id>/similar/', views.get_similar_dishes, name='get_similar_dishes'), #marakch dayrha
+
    
     
     # Preferences endpoints
@@ -62,7 +65,7 @@ urlpatterns = [
 
 
      # Assistance endpoints
-    path('assistance/create/', views.create_assistance_request, name='create_assistance_request'),#demmande d'assistance
+
     
     
     # Fidelity endpoints

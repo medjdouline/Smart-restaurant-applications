@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/item.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
 class MenuService extends ChangeNotifier {
   List<Item> _plats = [];
@@ -19,6 +23,9 @@ class MenuService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  List<Map<String, dynamic>> _categoriesApi = [];
+  List<Map<String, dynamic>> get categoriesApi => _categoriesApi;
+
   MenuService() {
     loadMenuData();
   }
@@ -29,13 +36,11 @@ class MenuService extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      await _loadPlats();
-      await _loadEntrees();
-      await _loadDesserts();
-      await _loadBoissons();
-      await _loadAccompagnements();
+      // 1. Load hardcoded data first (with images)
+      await _loadHardcodedData();
+      
+      // 2. Load API data and merge (without overwriting existing items with images)
+      await _loadApiData();
 
       _isLoading = false;
       notifyListeners();
@@ -43,12 +48,13 @@ class MenuService extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = 'Erreur lors du chargement: $e';
       notifyListeners();
+      debugPrint('MenuService error: $e');
     }
   }
 
-  // Méthodes de chargement pour chaque catégorie
-  Future<void> _loadPlats() async {
-    final platsData = [ // Couscous
+   Future<void> _loadHardcodedData() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+        final platsData = [
       {
         'id': '201',
         'nom': 'Couscous Poulet',
@@ -59,7 +65,7 @@ class MenuService extends ChangeNotifier {
         'image': 'assets/images/Plats/couscous_poulet.jpg',
         'pointsFidelite': 2,
       },
-      {
+            {
         'id': '202',
         'nom': 'Couscous Agneau',
         'sous_categorie': 'Couscous',
@@ -336,11 +342,10 @@ class MenuService extends ChangeNotifier {
         'ingredients': 'courgettes, fromage, crème, herbes',
         'image': 'assets/images/Plats/gratin_courgettes.jpg',
         'pointsFidelite': 1,
-      },]; // Vos données de plats
-    _plats = platsData.map((data) => Item.fromMap(data)).toList();
-  }
+      },
+      ];
+      _plats = platsData.map((data) => Item.fromMap(data)).toList();
 
-  Future<void> _loadEntrees() async {
     final entreesData = [  // Soupes
       {
         'id': '101',
@@ -555,11 +560,9 @@ class MenuService extends ChangeNotifier {
         'ingredients': 'poivron, aubergine, courgette, riz, tomates, herbes',
         'image': 'assets/images/Entrées/dolma.jpg',
         'pointsFidelite': 1,
-      },]; // Vos données d'entrées
+      },]; 
     _entrees = entreesData.map((data) => Item.fromMap(data)).toList();
-  }
 
-  Future<void> _loadDesserts() async {
     final dessertsData = [
      // Gâteaux
     {
@@ -668,9 +671,7 @@ class MenuService extends ChangeNotifier {
     },
     ];
     _desserts = dessertsData.map((data) => Item.fromMap(data)).toList();
-  }
 
-  Future<void> _loadBoissons() async {
     final boissonsData = [
    // Boissons Chaudes
     {
@@ -829,9 +830,7 @@ class MenuService extends ChangeNotifier {
     },
     ];
     _boissons = boissonsData.map((data) => Item.fromMap(data)).toList();
-  }
 
-  Future<void> _loadAccompagnements() async {
     final accompagnementsData = [
    // Riz
     {
@@ -942,7 +941,145 @@ class MenuService extends ChangeNotifier {
     _accompagnements = accompagnementsData.map((data) => Item.fromMap(data)).toList();
   }
 
-  Map<String, List<Item>> groupItemsBySubCategory(List<Item> items) {
+Future<void> _loadApiData() async {
+  try {
+    const baseUrl = 'http://127.0.0.1:8000/api/table';
+    
+    debugPrint('Starting API data loading...');
+    
+    // First get categories
+    final categoriesResponse = await http.get(
+      Uri.parse('$baseUrl/categories/'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (categoriesResponse.statusCode != 200) {
+      debugPrint('Failed to load categories: ${categoriesResponse.statusCode}');
+      return;
+    }
+
+    final List<dynamic> categories = json.decode(categoriesResponse.body);
+    debugPrint('Loaded ${categories.length} categories from API');
+    
+    for (var category in categories) {
+      final categoryId = category['id'];
+      final categoryName = category['nomCat'].toString().toLowerCase();
+      
+      debugPrint('Processing category: $categoryName (ID: $categoryId)');
+      
+      // Get subcategories for this category
+      final subcategoriesResponse = await http.get(
+        Uri.parse('$baseUrl/categories/$categoryId/subcategories/'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (subcategoriesResponse.statusCode != 200) continue;
+
+      final List<dynamic> subcategories = json.decode(subcategoriesResponse.body);
+      debugPrint('Loaded ${subcategories.length} subcategories for $categoryName');
+      
+      for (var subcategory in subcategories) {
+        final subcategoryId = subcategory['id'];
+        final subcategoryName = subcategory['nomSousCat'] ?? 'Sans sous-catégorie';
+        
+        debugPrint('Loading items for subcategory: $subcategoryName (ID: $subcategoryId)');
+        
+        final itemsResponse = await http.get(
+          Uri.parse('$baseUrl/subcategories/$subcategoryId/items/'),
+          headers: {'Content-Type': 'application/json'},
+        );
+
+        if (itemsResponse.statusCode != 200) continue;
+
+        final List<dynamic> apiItems = json.decode(itemsResponse.body);
+        debugPrint('Loaded ${apiItems.length} items for subcategory: $subcategoryName');
+        
+        for (var itemData in apiItems) {
+          final itemId = itemData['id'].toString();
+          
+          // Skip if item exists in hardcoded data
+          if (_itemExistsInAnyList(itemId)) {
+            debugPrint('Item $itemId exists in hardcoded data - skipping');
+            continue;
+          }
+          
+          final item = Item(
+            id: itemId,
+            nom: itemData['nom'] ?? 'Sans nom',
+            sousCategorie: subcategoryName,
+            prix: (itemData['prix'] ?? 0).toDouble(),
+            description: itemData['description'] ?? 'Aucune description disponible',
+            ingredients: itemData['ingredients'] ?? 'Ingrédients non spécifiés',
+            image: 'assets/images/placeholder.jpg', // Default placeholder
+            pointsFidelite: itemData['pointsFidelite'] ?? 0,
+          );
+
+          _getTargetListByCategory(categoryName).add(item);
+        }
+      }
+    }
+  } catch (e) {
+    debugPrint('Error loading API data: $e');
+  }
+}
+
+
+  Future<List<Map<String, dynamic>>> getNouveautes() async {
+  try {
+    const baseUrl = 'http://127.0.0.1:8000/api';
+    final response = await http.get(Uri.parse('$baseUrl/table/plats/nouveautes/'));
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(json.decode(response.body));
+    }
+    throw Exception('Failed to load new plats');
+  } catch (e) {
+    debugPrint('Error loading new plats: $e');
+    throw e;
+  }
+}
+
+bool _itemExistsInAnyList(String itemId) {
+  return [..._plats, ..._entrees, ..._desserts, ..._boissons, ..._accompagnements]
+      .any((item) => item.id == itemId);
+}
+
+  List<Item> _getTargetListByCategory(String categoryName) {
+    switch (categoryName.toLowerCase()) {
+      case 'plat':
+      case 'plats':
+        return _plats;
+      case 'entree':
+      case 'entrée':
+      case 'entrees':
+      case 'entrées':
+        return _entrees;
+      case 'dessert':
+      case 'desserts':
+        return _desserts;
+      case 'boisson':
+      case 'boissons':
+        return _boissons;
+      case 'accompagnement':
+      case 'accompagnements':
+        return _accompagnements;
+      default:
+        // Default to plats for unknown categories
+        debugPrint('Unknown category: $categoryName, defaulting to plats');
+        return _plats;
+    }
+    
+  }
+
+
+
+  // Grouping methods
+  Map<String, List<Item>> get groupedPlats => _groupItemsBySubCategory(_plats);
+  Map<String, List<Item>> get groupedEntrees => _groupItemsBySubCategory(_entrees);
+  Map<String, List<Item>> get groupedDesserts => _groupItemsBySubCategory(_desserts);
+  Map<String, List<Item>> get groupedBoissons => _groupItemsBySubCategory(_boissons);
+  Map<String, List<Item>> get groupedAccompagnements => _groupItemsBySubCategory(_accompagnements);
+
+  Map<String, List<Item>> _groupItemsBySubCategory(List<Item> items) {
     final grouped = <String, List<Item>>{};
     for (var item in items) {
       grouped.putIfAbsent(item.sousCategorie, () => []).add(item);
@@ -950,22 +1087,45 @@ class MenuService extends ChangeNotifier {
     return grouped;
   }
 
-  Map<String, List<Item>> get groupedPlats => groupItemsBySubCategory(_plats);
-  Map<String, List<Item>> get groupedEntrees => groupItemsBySubCategory(_entrees);
-  Map<String, List<Item>> get groupedDesserts => groupItemsBySubCategory(_desserts);
-  Map<String, List<Item>> get groupedBoissons => groupItemsBySubCategory(_boissons);
-  Map<String, List<Item>> get groupedAccompagnements => groupItemsBySubCategory(_accompagnements);
+  Future<void> refresh() async {
+    _plats.clear();
+    _entrees.clear();
+    _desserts.clear();
+    _boissons.clear();
+    _accompagnements.clear();
+    await loadMenuData();
+  }
 
   Item? findItemById(String id) {
     try {
       return [..._plats, ..._entrees, ..._desserts, ..._boissons, ..._accompagnements]
           .firstWhere((item) => item.id == id);
     } catch (e) {
+      debugPrint('Item not found with ID: $id');
       return null;
     }
   }
 
-  Future<void> refresh() async {
-    await loadMenuData();
+  // Helper method to get all items
+  List<Item> getAllItems() {
+    return [..._plats, ..._entrees, ..._desserts, ..._boissons, ..._accompagnements];
+  }
+
+  // Helper methods to get items by category
+  List<Item> getItemsByCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'plats':
+        return _plats;
+      case 'entrees':
+        return _entrees;
+      case 'desserts':
+        return _desserts;
+      case 'boissons':
+        return _boissons;
+      case 'accompagnements':
+        return _accompagnements;
+      default:
+        return [];
+    }
   }
 }

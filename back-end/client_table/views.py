@@ -1,7 +1,8 @@
+#client_table/views.py
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from core.permissions import IsClient, IsGuest, IsTableClient
 from core.firebase_crud import firebase_crud
 from firebase_admin import firestore
@@ -9,6 +10,8 @@ import logging
 from django.utils import timezone
 from datetime import datetime
 from core.firebase_crud import firebase_crud
+import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,40 +73,139 @@ def update_client_profile(request):
 # Orders Endpoints
 # ==================
 
+
+# 1. Django View Fix - Add proper encoding handling
 @api_view(['GET'])
-@permission_classes([IsClient])
+@permission_classes([IsAuthenticated])
 def get_orders_history(request):
-    """Get client's order history"""
+    """
+    Get order history for the authenticated client
+    URL: /api/table/orders/
+    """
     try:
-        client_id = request.user.uid
+        # Get the client's UID
+        if hasattr(request.user, 'uid'):
+            client_id = request.user.uid
+        elif hasattr(request.user, 'firebase_uid'):
+            client_id = request.user.firebase_uid
+        else:
+            client_id = str(request.user.pk)
+            
+        logger.info(f"Using client_id: {client_id}")
         
-        # Query orders for this client
-        orders = firebase_crud.query_collection(
-            'commandes',
-            'idC',
-            '==',
-            client_id
-        )
+        # Query Firebase for orders belonging to this client
+        orders = firebase_crud.query_collection('commandes', 'idC', '==', client_id)
+        logger.info(f"Found {len(orders)} orders for client {client_id}")
         
-        # Format the response
         order_history = []
         for order in orders:
-            order_history.append({
-                'id': order.id,
-                'date': order.get('dateCreation', ''),
-                'montant': order.get('montant', 0),
-                'etat': order.get('etat', ''),
-                'confirmation': order.get('confirmation', False)
-            })
+            order_id = order.get('id') if isinstance(order, dict) else getattr(order, 'id', None)
             
-        # Sort by date (newest first)
-        order_history.sort(key=lambda x: x['date'], reverse=True)
+            # Get order items from commandes_plat collection
+            order_items_query = firebase_crud.query_collection('commandes_plat', 'idCmd', '==', order_id)
+            
+            items = []
+            for item_data in order_items_query:
+                # Get dish details from plats collection
+                plat_id = item_data.get('idP')
+                plat_details = firebase_crud.get_doc('plats', plat_id)
+                
+                if plat_details:
+                    # FIX: Clean up the dish name encoding
+                    dish_name = plat_details.get('nom', 'Plat inconnu')
+                    # Handle common encoding issues
+                    dish_name = dish_name.replace('â', "'")  # Fix corrupted apostrophe
+                    dish_name = dish_name.replace('Ã¢', "'")  # Another encoding variant
+                    dish_name = dish_name.replace('â€™', "'")  # UTF-8 encoding issue
+                    
+                    items.append({
+                        'id': plat_id,
+                        'nom': dish_name,
+                        'prix': float(plat_details.get('prix', 0)),
+                        'quantite': int(item_data.get('quantité', 1)),
+                        'pointsFidelite': 0
+                    })
+            
+            # Process each order
+            order_data = {
+                'id': order_id,
+                'date': order.get('dateCreation', datetime.now().isoformat()),
+                'montant': float(order.get('montant', 0)),
+                'etat': order.get('etat', 'en_attente'),
+                'confirmation': order.get('confirmation', False),
+                'items': items,
+                'reductionAppliquee': False,
+                'montantReduction': 0,
+                'pointsUtilises': 0,
+                'firebaseOrderId': order_id,
+                'djangoOrderId': order.get('djangoOrderId'),
+            }
+            
+            order_history.append(order_data)
+            
+        # Sort by date descending
+        try:
+            order_history.sort(key=lambda x: datetime.fromisoformat(x['date'].replace('Z', '+00:00')), reverse=True)
+        except:
+            order_history.reverse()
         
-        return Response(order_history)
+        logger.info(f"Returning {len(order_history)} orders")
+        return Response(order_history, status=200)
+        
     except Exception as e:
-        logger.error(f"Error getting order history: {str(e)}")
-        return Response({'error': 'Failed to retrieve order history'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Error in get_orders_history: {str(e)}")
+        return Response({'error': str(e)}, status=500)
 
+
+# 2. Alternative: Create a utility function for text cleaning
+def clean_text_encoding(text):
+    """Clean common encoding issues in text"""
+    if not text:
+        return text
+    
+    # Common encoding fixes
+    replacements = {
+        'â': "'",           # Most common apostrophe corruption
+        'Ã¢': "'",          # UTF-8 double encoding
+        'â€™': "'",         # Smart quote corruption
+        'Ã©': 'é',          # e with accent
+        'Ã¨': 'è',          # e with grave accent
+        'Ã ': 'à',          # a with grave accent
+        'Ã§': 'ç',          # c with cedilla
+        'â€œ': '"',         # Opening quote
+        'â€': '"',          # Closing quote
+        'â€"': '—',         # Em dash
+        'â€"': '–',         # En dash
+    }
+    
+    cleaned_text = text
+    for corrupted, correct in replacements.items():
+        cleaned_text = cleaned_text.replace(corrupted, correct)
+    
+    return cleaned_text
+
+
+# 3. Django Settings Fix - Add to settings.py
+# Ensure proper UTF-8 handling in Django settings
+DATABASES = {
+    'default': {
+        # ... your database config
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'use_unicode': True,
+        },
+    }
+}
+
+# File encoding
+FILE_CHARSET = 'utf-8'
+DEFAULT_CHARSET = 'utf-8'
+
+# Locale settings
+USE_I18N = True
+USE_L10N = True
+USE_TZ = True
+    
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_order_details(request, order_id):
@@ -185,6 +287,41 @@ def delete_order_history(request, order_id):
 # ==================
 # Favorites Endpoints
 # ==================
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Changed from IsClient to IsTableClient
+def create_assistance_request(request):
+    """Create a new assistance request"""
+    try:
+        client_id = request.user.uid
+        
+        # Validate required fields
+        if 'table_id' not in request.data:
+            return Response({'error': 'Table ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        table_id = request.data['table_id']
+        
+        # Check if table exists
+        table = firebase_crud.get_doc('tables', table_id)
+        if not table:
+            return Response({'error': 'Table not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create assistance request
+        assistance_data = {
+            'idC': client_id,
+            'idTable': table_id,
+            'etat': 'non traitee',
+            'createdAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        assistance_id = firebase_crud.create_doc('demandeAssistance', assistance_data)
+        
+        return Response({
+            'id': assistance_id,
+            'message': 'Assistance request created successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error creating assistance request: {str(e)}")
+        return Response({'error': 'Failed to create assistance request'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -286,7 +423,7 @@ def remove_favorite(request, plat_id):
 # ==================
 
 @api_view(['GET'])
-@permission_classes([IsTableClient])  # Changed from IsClient to IsTableClient
+@permission_classes([AllowAny])
 def get_menus(request):
     """Get all menus"""
     try:
@@ -328,7 +465,7 @@ def get_menus(request):
         return Response({'error': 'Failed to retrieve menus'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes([IsTableClient])  # Changed from IsClient to IsTableClient
+@permission_classes([AllowAny])
 def get_categories(request):
     """Get all dish categories"""
     try:
@@ -342,64 +479,136 @@ def get_categories(request):
     except Exception as e:
         logger.error(f"Error getting categories: {str(e)}")
         return Response({'error': 'Failed to retrieve categories'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 
 
 @api_view(['GET'])
-@permission_classes([IsTableClient])
-def get_subcategories(request, category_id):
-    """Get subcategories for a specific category"""
+@permission_classes([AllowAny])
+def get_subcategory_items(request, subcategory_id):
+    """Get all dishes/items for a specific subcategory"""
     try:
-        # First, verify if the category exists
-        category = firebase_crud.get_doc('categories', category_id)
-        if not category:
-            return Response({'error': f'Category with ID {category_id} not found'}, 
-                            status=status.HTTP_404_NOT_FOUND)
+        # Verify subcategory exists
+        subcategory = firebase_crud.get_doc('sous_categories', subcategory_id)
+        if not subcategory:
+            return Response({'error': 'Subcategory not found'}, status=404)
         
-        # Log the query parameters for debugging
-        logger.info(f"Querying subcategories for category_id: {category_id}")
+        # Get dishes for this subcategory
+        dishes = firebase_crud.query_collection(
+            'plats',
+            'idSousCat',
+            '==',
+            subcategory_id
+        )
         
-        # Get subcategories with more detailed error handling
-        try:
-            subcategories = firebase_crud.query_collection(
-                'sous_categories',
-                'idCat',
-                '==',
-                category_id
-            )
-            logger.info(f"Query returned {len(subcategories)} subcategories")
-        except Exception as db_error:
-            logger.error(f"Database query failed: {str(db_error)}")
-            return Response({'error': 'Database query failed', 'details': str(db_error)}, 
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Format dishes
+        dishes_list = []
+        for dish in dishes:
+            dishes_list.append({
+                'id': dish.get('id'),
+                'nom': dish.get('nom', ''),
+                'description': dish.get('description', ''),
+                'prix': dish.get('prix', 0),
+                'ingredients': dish.get('ingredients', []),
+                'pointsFidelite': dish.get('pointsFidelite', 0)
+            })
         
-        # Process results with safer iteration
-        subcategory_list = []
-        
-        for subcat in subcategories:
-            try:
-                # Handle both dictionary-like and object-like access
-                subcat_id = subcat.id if hasattr(subcat, 'id') else subcat.get('id')
-                
-                subcategory_list.append({
-                    'id': subcat_id,
-                    'nomSousCat': subcat.get('nomSousCat', ''),
-                    'idCat': subcat.get('idCat', '')
-                })
-            except Exception as format_error:
-                logger.warning(f"Error formatting subcategory: {str(format_error)}")
-                # Continue processing other subcategories
-        
-        # If we found no subcategories, return an empty list rather than 404
-        return Response(subcategory_list)
+        return Response({
+            'subcategory': {
+                'id': subcategory_id,
+                'nom': subcategory.get('nomSousCat', '')
+            },
+            'items': dishes_list
+        })
         
     except Exception as e:
-        # Log the full error with traceback for debugging
-        logger.error(f"Error getting subcategories for {category_id}: {str(e)}", exc_info=True)
-        return Response({'error': 'Failed to retrieve subcategories', 'details': str(e)}, 
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Error getting items: {str(e)}")
+        return Response({'error': str(e)}, status=500)
+
 
 @api_view(['GET'])
-@permission_classes([IsTableClient])  # Changed from IsClient to IsTableClient
+@permission_classes([AllowAny])
+def get_new_plats(request):
+    print("=== get_new_plats function called ===")  # Add this line
+    """
+    Get all plats with isNew attribute set to true
+    Returns:
+        - List of plats where isNew = true
+        - Empty list if no new plats found
+    """
+    
+    try:
+        print("Querying firebase for new plats...")  # Add this line
+        # Query all plats where isNew = true
+        new_plats = firebase_crud.query_collection(
+            'plats',
+            'isNew',
+            '==',
+            True
+        )
+        
+        # Format the response
+        plats_list = []
+        for plat in new_plats:
+            plats_list.append({
+                'id': plat.get('id'),
+                'nom': plat.get('nom', ''),
+                'description': plat.get('description', ''),
+                'prix': plat.get('prix', 0),
+                'categorie': plat.get('idCat', ''),
+                'sous_categorie': plat.get('idSousCat', ''),
+                'note': plat.get('note', 0),
+                'image_url': plat.get('image_url', '')  # Include if available
+            })
+        
+        return Response(plats_list)
+    
+    except Exception as e:
+        logger.error(f"Error getting new plats: {str(e)}")
+        return Response(
+            {'error': 'Failed to retrieve new plats'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_category_subcategories(request, category_id):
+    try:
+        # Vérifiez que la catégorie existe
+        category = firebase_crud.get_doc('categories', category_id)
+        if not category:
+            return Response({'error': 'Catégorie non trouvée'}, status=404)
+        
+        # Récupérez les sous-catégories
+        subcategories = firebase_crud.query_collection(
+            'sous_categories',
+            'idCat',
+            '==',
+            category_id
+        )
+        
+        # Formatage de la réponse
+        response_data = {
+            'category': {
+                'id': category_id,
+                'name': category.get('nomCat', '')
+            },
+            'subcategories': [
+                {
+                    'id': subcat.get('id'),
+                    'name': subcat.get('nomSousCat', ''),
+                    'category_id': subcat.get('idCat', '')
+                }
+                for subcat in subcategories
+            ]
+        }
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+    
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def get_plat_details(request, plat_id):
     """Get detailed information for a specific dish"""
     try:
@@ -869,41 +1078,7 @@ def get_similar_dishes(request, plat_id):
 # Table/Assistance Endpoints - Allow both guests and clients
 # ==================
 
-@api_view(['POST'])
-@permission_classes([IsTableClient])  # Changed from IsClient to IsTableClient
-def create_assistance_request(request):
-    """Create a new assistance request"""
-    try:
-        client_id = request.user.uid
-        
-        # Validate required fields
-        if 'table_id' not in request.data:
-            return Response({'error': 'Table ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        table_id = request.data['table_id']
-        
-        # Check if table exists
-        table = firebase_crud.get_doc('tables', table_id)
-        if not table:
-            return Response({'error': 'Table not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Create assistance request
-        assistance_data = {
-            'idC': client_id,
-            'idTable': table_id,
-            'etat': 'non traitee',
-            'createdAt': firestore.SERVER_TIMESTAMP
-        }
-        
-        assistance_id = firebase_crud.create_doc('demandeAssistance', assistance_data)
-        
-        return Response({
-            'id': assistance_id,
-            'message': 'Assistance request created successfully'
-        })
-    except Exception as e:
-        logger.error(f"Error creating assistance request: {str(e)}")
-        return Response({'error': 'Failed to create assistance request'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # ==================
 # Order Endpoints - Allow both guests and clients
@@ -1026,7 +1201,7 @@ def create_order(request):
                 'points_needed_for_discount': 10 - new_loyalty_points
             })
             
-        return Response(response_data)
+        return Response(response_data, status=status.HTTP_201_CREATED)
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
         return Response({'error': 'Failed to create order'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

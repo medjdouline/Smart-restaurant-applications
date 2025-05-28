@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class UserService with ChangeNotifier {
+    int _fidelityPoints = 0;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   User? _firebaseUser;
   bool _isGuest = false;
@@ -12,6 +13,8 @@ class UserService with ChangeNotifier {
   String? _refreshToken;
   String? _gender;
   DateTime? _birthdate;
+  String? _tableId;
+  
   
   String? _nomUtilisateur;
   String? _email; // ADD THIS LINE - new field to store email from API
@@ -43,6 +46,8 @@ class UserService with ChangeNotifier {
   String? get gender => _gender;
   DateTime? get birthdate => _birthdate;
   String? get phone => _phone;
+  String? get tableId => _tableId;
+  String? get idToken => _idToken;
   String? get photoUrl => _photoUrl ?? _firebaseUser?.photoURL;
   bool get isLoggedIn => _idToken != null || _isGuest;
   bool get isGuest => _isGuest;
@@ -50,10 +55,47 @@ class UserService with ChangeNotifier {
   List<String> get allergies => List.unmodifiable(_allergies);
   List<NotificationModel> get notifications => List.unmodifiable(_notifications);
   int get unreadNotificationsCount => _unreadNotificationsCount;
+  int get fidelityPoints => _fidelityPoints;
+  bool get hasDiscount => _fidelityPoints >= 10;
 
 
   List<String> get preferences => List.unmodifiable(_preferences);
   bool get isAuthenticated => _idToken != null && !_isGuest;
+  void setTableId(String tableId) {
+  _tableId = tableId;
+  notifyListeners();
+}
+
+Future<void> loadFidelityPoints() async {
+    if (_isGuest || _idToken == null) {
+      _fidelityPoints = 0;
+      return;
+    }
+
+    try {
+      debugPrint('Loading fidelity points...');
+      final response = await http.get(
+        Uri.parse('$_baseUrl/table/fidelity/points/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_idToken',
+        },
+      );
+
+      debugPrint('Fidelity points response: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _fidelityPoints = data['points'] ?? 0;
+        debugPrint('Fidelity points loaded: $_fidelityPoints');
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading fidelity points: $e');
+      _fidelityPoints = 0;
+    }
+  }
 Future<bool> login(String identifier, String password) async {
   try {
     debugPrint('Tentative de connexion pour: $identifier');
@@ -117,22 +159,22 @@ Future<bool> login(String identifier, String password) async {
     }
   }
   void enterAsGuest() async {
-  try {
-    final success = await loginAsGuest();
-    if (!success) {
-      // Fallback to local guest mode if API fails
+    try {
+      final success = await loginAsGuest();
+      if (!success) {
+        _isGuest = true;
+        _nomUtilisateur = 'Invité';
+        _fidelityPoints = 0; // Add this line
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error in enterAsGuest: $e');
       _isGuest = true;
       _nomUtilisateur = 'Invité';
+      _fidelityPoints = 0; // Add this line
       notifyListeners();
     }
-  } catch (e) {
-    debugPrint('Error in enterAsGuest: $e');
-    // Fallback to local guest mode
-    _isGuest = true;
-    _nomUtilisateur = 'Invité';
-    notifyListeners();
   }
-}
 
   Future<bool> register(String email, String password, String username, String phone) async {
     try {
@@ -348,7 +390,7 @@ Future<void> updateAllergies(List<String> allergies) async {
   }
 }
 
-Future<void> _loadUserDataFromBackend() async {
+ Future<void> _loadUserDataFromBackend() async {
     if (_idToken == null) {
       debugPrint('No token available for loading user data');
       return;
@@ -370,10 +412,9 @@ Future<void> _loadUserDataFromBackend() async {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         
-        // UPDATED - Store all the data from your Django API
         _nomUtilisateur = data['username'];
-        _email = data['email']; // ADD THIS LINE - store email from API response
-        _phone = data['phone_number']; // FIXED - changed from 'phoneNumber' to 'phone_number'
+        _email = data['email'];
+        _phone = data['phone_number'];
         _photoUrl = data['photo_url'];
         _gender = data['gender'];
         
@@ -395,8 +436,11 @@ Future<void> _loadUserDataFromBackend() async {
         
         debugPrint('User data loaded successfully');
         debugPrint('Username: $_nomUtilisateur');
-        debugPrint('Email: $_email'); // ADD THIS LINE - debug print
+        debugPrint('Email: $_email');
         debugPrint('Phone: $_phone');
+        
+        // Load fidelity points after loading user data
+        await loadFidelityPoints();
         
         notifyListeners();
       }
@@ -405,18 +449,23 @@ Future<void> _loadUserDataFromBackend() async {
     }
   }
 
-
+  // Update your _clearLocalData method:
   void _clearLocalData() {
     _nomUtilisateur = null;
-    _email = null; // ADD THIS LINE - clear email when logging out
+    _email = null;
     _phone = null;
     _photoUrl = null;
-    _gender = null; // ADD THIS LINE - clear gender too
-    _birthdate = null; // ADD THIS LINE - clear birthdate too
+    _gender = null;
+    _birthdate = null;
+    _fidelityPoints = 0; // Add this line
     _diets.clear();
     _allergies.clear();
+    _tableId = null;
     _preferences.clear();
   }
+
+
+
 
   bool hasAllergy(String allergy) => _allergies.contains(allergy);
   bool hasDiet(String diet) => _diets.contains(diet);
@@ -692,6 +741,44 @@ Future<bool> loginAsGuest() async {
     }
   } catch (e) {
     debugPrint('Guest login error: $e');
+    return false;
+  }
+}
+// Add this method to your UserService class
+
+Future<bool> createAssistanceRequest(String tableId) async {
+  if (!isLoggedIn || isGuest) {
+    debugPrint('Cannot create assistance request - user not logged in or is guest');
+    return false;
+  }
+
+  try {
+    debugPrint('Creating assistance request for table: $tableId');
+    
+    final response = await http.post(
+      Uri.parse('http://127.0.0.1:8000/api/table/assistance/create/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+      body: jsonEncode({
+        'table_id': tableId,
+      }),
+    );
+
+    debugPrint('Assistance request response: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      debugPrint('Assistance request created with ID: ${data['id']}');
+      return true;
+    } else {
+      debugPrint('Failed to create assistance request: ${response.statusCode} - ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Error creating assistance request: $e');
     return false;
   }
 }

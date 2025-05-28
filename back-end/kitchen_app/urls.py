@@ -30,6 +30,7 @@ urlpatterns = [
     path('plats/', views.get_all_plats, name='get_all_plats'),
     path('plats/add/', views.add_plat, name='add_plat'),
     path('plats/<str:plat_id>/update/', views.update_plat, name='update_plat'),
+    path('plats/<str:plat_id>/delete/', views.delete_plat, name='delete_plat'),
     path('plats/<str:plat_id>/ingredients/', views.update_plat_ingredients, name='update_plat_ingredients'),
     path('plats/categorie/<str:categorie_id>/', views.get_plats_by_categorie, name='get_plats_by_categorie'),
     path('plats/sous-categorie/<str:sous_categorie_id>/', views.get_plats_by_sous_categorie, name='get_plats_by_sous_categorie'),

@@ -668,7 +668,8 @@ def add_plat(request):
             'note': 0,  # Note initiale
             'estimation': 0,  # Estimation initiale (temps de préparation)
             'quantite': 0,  # Quantité disponible initiale
-            'createdAt': firestore.SERVER_TIMESTAMP
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'isNew': True  # Nouvel attribut ajouté
         }
         
         # Créer le document plat
@@ -786,6 +787,47 @@ def update_plat(request, plat_id):
         return JsonResponse({'error': f'Erreur de validation: {str(e)}'}, status=400)
     except Exception as e:
         logger.error(f"Erreur lors de la mise à jour du plat: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
+    
+@api_view(['DELETE'])
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([IsStaff])
+@csrf_exempt
+def delete_plat(request, plat_id):
+    """
+    Supprimer un plat et ses ingrédients associés
+    Supprime le document dans 'plats' et le document correspondant dans 'plat_ingredients'
+    """
+    try:
+        # Vérifier que le plat existe
+        plat_ref = db.collection('plats').document(plat_id)
+        plat_doc = plat_ref.get()
+        
+        if not plat_doc.exists:
+            return JsonResponse({'error': 'Plat non trouvé'}, status=404)
+        
+        plat_data = plat_doc.to_dict()
+        
+        # Supprimer le document plat_ingredients associé
+        plat_ingredients_ref = db.collection('plat_ingredients').document(plat_id)
+        plat_ingredients_doc = plat_ingredients_ref.get()
+        
+        if plat_ingredients_doc.exists:
+            plat_ingredients_ref.delete()
+            logger.info(f"Ingrédients du plat {plat_id} supprimés")
+        
+        # Supprimer le plat
+        plat_ref.delete()
+        logger.info(f"Plat {plat_id} supprimé avec succès")
+        
+        return JsonResponse({
+            'message': 'Plat supprimé avec succès',
+            'plat_id': plat_id,
+            'nom_plat': plat_data.get('nom', 'Nom non disponible')
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression du plat: {str(e)}", exc_info=True)
         return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
 
 

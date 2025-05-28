@@ -4,10 +4,13 @@ import 'package:provider/provider.dart';
 import 'menu_entree.dart';
 import 'menu_plats.dart';
 import 'menu_dessert.dart';
+import 'menu_nouveautes.dart';
 import 'menu_boissons.dart';
 import 'menu_accompagnement.dart';
 import 'menu_cart.dart';
 import '../cart_service.dart';
+import '../services/menu_service.dart'; // ADD THIS IMPORT
+
 
 class MenuChoixPage extends StatelessWidget {
   final String? nomUtilisateur;
@@ -20,6 +23,12 @@ class MenuChoixPage extends StatelessWidget {
   }) : super(key: key);
 
   final List<Map<String, dynamic>> _categories = const [
+    {
+    'nom': 'Nouveautés',
+    'couleur': Color(0xFFFF6B6B),
+    'image': 'assets/images/nouveaute.png',
+    'page': MenuNouveautesPage(),
+  },
     {
       'nom': 'Entrées',
       'couleur': Color(0xFF5CB85C),
@@ -163,7 +172,21 @@ class MenuChoixPage extends StatelessWidget {
 
   Widget _buildCategoryButton(BuildContext context, Map<String, dynamic> categorie) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        final menuService = Provider.of<MenuService>(context, listen: false);
+        
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+        
+        await menuService.refresh();
+        
+        Navigator.of(context).pop();
+        
         Navigator.push(
           context,
           MaterialPageRoute(

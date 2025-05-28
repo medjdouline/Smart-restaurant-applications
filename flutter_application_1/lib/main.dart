@@ -56,6 +56,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => OrderHistoryService()),
         ChangeNotifierProvider(create: (_) => RatingService()),
         ChangeNotifierProvider(create: (_) => MenuService()),
+        ChangeNotifierProvider(create: (_) => MenuService()),
+        ChangeNotifierProvider(create: (_) => OrderHistoryService()),
       ],
       child: const MyApp(),
     ),

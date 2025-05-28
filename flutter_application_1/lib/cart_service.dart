@@ -56,7 +56,7 @@ class CartService extends ChangeNotifier {
   final Map<String, CartItem> _items = {};
   static const int SEUIL_REDUCTION = 10;
   static const double POURCENTAGE_REDUCTION = 0.50;
-  static const String _djangoApiUrl = 'https://api.votredomaine.com/api/orders/create/';
+  static const String _djangoApiUrl = 'http://127.0.0.1:8000/api/table/orders/create/';
 
   Map<String, CartItem> get items => {..._items};
   int get itemCount => _items.length;
@@ -139,78 +139,88 @@ class CartService extends ChangeNotifier {
   }
 
   // Méthode confirmOrder corrigée
-  Future<void> confirmOrder(BuildContext context) async {
-    if (_items.isEmpty) return;
+Future<void> confirmOrder(BuildContext context, String tableId) async {
+  if (_items.isEmpty) return;
 
-    final orderHistory = Provider.of<OrderHistoryService>(context, listen: false);
-    final user = FirebaseAuth.instance.currentUser;
-    
-    if (user == null) {
-      _showError(context, 'Vous devez être connecté pour commander');
-      return;
-    }
-
-    try {
-      final orderData = _prepareOrderData(user.uid);
-      final orderRef = await _saveOrderToFirestore(orderData);
-      final response = await _sendToDjangoAPI(orderData, orderRef.id);
-
-      if (response.statusCode == 201) {
-        await _handleSuccessfulOrder(
-          context,
-          orderHistory,
-          orderRef,
-          json.decode(response.body),
-        );
-      } else {
-        throw http.ClientException(
-          'Erreur API: ${response.statusCode}',
-          Uri.parse(_djangoApiUrl),
-        );
-      }
-    } on TimeoutException catch (_) {
-      _showError(context, 'Timeout - Serveur non disponible');
-    } on http.ClientException catch (e) {
-      _showError(context, 'Erreur réseau: ${e.message}');
-    } catch (e) {
-      _showError(context, 'Erreur inattendue: ${e.toString()}');
-    }
+  final orderHistory = Provider.of<OrderHistoryService>(context, listen: false);
+  final user = FirebaseAuth.instance.currentUser;
+  
+  if (user == null) {
+    _showError(context, 'Vous devez être connecté pour commander');
+    return;
   }
 
-  // Méthodes helpers
-  Map<String, dynamic> _prepareOrderData(String userId) {
-    return {
-      'items': _items.values.map((item) => item.toMap()).toList(),
-      'total': totalAmount,
-      'reduction_appliquee': reductionActive,
-      'montant_reduction': montantReduction,
-      'points_utilises': totalPointsFidelite,
-      'user_id': userId,
-      'status': 'pending',
-      'created_at': DateTime.now().toIso8601String(),
-    };
+  try {
+    final orderData = _prepareOrderData(user.uid, tableId);  // Passer tableId
+    final orderRef = await _saveOrderToFirestore(orderData);
+    final response = await _sendToDjangoAPI(orderData, orderRef.id);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {  // Accepter les deux codes
+      await _handleSuccessfulOrder(
+        context,
+        orderHistory,
+        orderRef,
+        json.decode(response.body),
+      );
+    } else {
+      throw http.ClientException(
+        'Erreur API: ${response.statusCode}',
+        Uri.parse(_djangoApiUrl),
+      );
+    }
+  } on TimeoutException catch (_) {
+    _showError(context, 'Timeout - Serveur non disponible');
+  } on http.ClientException catch (e) {
+    _showError(context, 'Erreur réseau: ${e.message}');
+  } catch (e) {
+    _showError(context, 'Erreur inattendue: ${e.toString()}');
   }
+}
+
+// MODIFIER la méthode _prepareOrderData :
+Map<String, dynamic> _prepareOrderData(String userId, String tableId) {
+  return {
+    'items': _items.values.map((item) => {
+      'plat_id': item.id,
+      'quantity': item.quantite,
+    }).toList(),
+    'table_id': tableId,  // Ajouter l'ID de la table
+    'total': totalAmount,
+    'reduction_appliquee': reductionActive,
+    'montant_reduction': montantReduction,
+    'points_utilises': totalPointsFidelite,
+    'user_id': userId,
+    'status': 'pending',
+    'created_at': DateTime.now().toIso8601String(),
+  };
+}
 
   Future<DocumentReference> _saveOrderToFirestore(Map<String, dynamic> orderData) {
     return FirebaseFirestore.instance.collection('commandes').add(orderData);
   }
 
-  Future<http.Response> _sendToDjangoAPI(
-    Map<String, dynamic> orderData,
-    String firebaseOrderId,
-  ) async {
-    return await http.post(
-      Uri.parse(_djangoApiUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${await FirebaseAuth.instance.currentUser!.getIdToken()}',
-      },
-      body: json.encode({
-        ...orderData,
-        'firebase_order_id': firebaseOrderId,
-      }),
-    ).timeout(const Duration(seconds: 10));
-  }
+Future<http.Response> _sendToDjangoAPI(
+  Map<String, dynamic> orderData,
+  String firebaseOrderId,
+) async {
+  // Préparer les items au format attendu par Django
+  final items = _items.values.map((item) => {
+    'plat_id': item.id,  // Correspond à 'plat_id' dans Django
+    'quantity': item.quantite  // Correspond à 'quantity' dans Django
+  }).toList();
+
+  return await http.post(
+    Uri.parse(_djangoApiUrl),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${await FirebaseAuth.instance.currentUser!.getIdToken()}',
+    },
+    body: json.encode({
+      'items': items,  // Format correct pour Django
+      'table_id': orderData['table_id'],  // Sera ajouté dans la prochaine étape
+    }),
+  ).timeout(const Duration(seconds: 10));
+}
 
   Future<void> _handleSuccessfulOrder(
     BuildContext context,

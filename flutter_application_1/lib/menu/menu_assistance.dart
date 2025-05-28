@@ -2,8 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user_service.dart';
 
-class AssistancePage extends StatelessWidget {
-  const AssistancePage({Key? key}) : super(key: key);
+class AssistancePage extends StatefulWidget {
+  final String? tableId;
+  
+  const AssistancePage({Key? key, this.tableId}) : super(key: key);
+
+  @override
+  State<AssistancePage> createState() => _AssistancePageState();
+}
+
+class _AssistancePageState extends State<AssistancePage> {
+  bool _isLoading = false;
+  final TextEditingController _tableController = TextEditingController();
+  String? _currentTableId;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTableId = widget.tableId;
+    if (_currentTableId != null) {
+      _tableController.text = _currentTableId!;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tableController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +63,7 @@ class AssistancePage extends StatelessWidget {
           children: [
             SizedBox(height: screenHeight * 0.1),
             
-            // Illustration simplifiée
+            // Illustration
             Container(
               margin: const EdgeInsets.only(bottom: 40),
               child: const Icon(
@@ -47,7 +73,7 @@ class AssistancePage extends StatelessWidget {
               ),
             ),
 
-            // Message d'accueil
+            // Welcome message
             Text(
               'Bonjour ${userService.nomUtilisateur ?? ''}',
               style: const TextStyle(
@@ -64,21 +90,77 @@ class AssistancePage extends StatelessWidget {
                 color: Colors.black87,
               ),
             ),
-            SizedBox(height: screenHeight * 0.1),
+            SizedBox(height: screenHeight * 0.08),
 
-            // Bouton principal - Demander un serveur
-            _buildMainServiceButton(context),
-            SizedBox(height: screenHeight * 0.05),
+            // Table number input
+            _buildTableNumberInput(),
+            
+            const SizedBox(height: 30),
 
-            // Bouton urgence
-            _buildEmergencyButton(context),
+            // Main service button - Request server
+            _buildMainServiceButton(context, userService),
+            
+            const Spacer(),
+            
+            // Info text
+            const Padding(
+              padding: EdgeInsets.only(bottom: 40),
+              child: Text(
+                'Un serveur sera notifié et viendra à votre table',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMainServiceButton(BuildContext context) {
+  Widget _buildTableNumberInput() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _tableController,
+        keyboardType: TextInputType.number,
+        onChanged: (value) {
+          _currentTableId = value.trim();
+        },
+        decoration: InputDecoration(
+          labelText: 'Numéro de table',
+          hintText: 'Tapez votre numéro de table',
+          prefixIcon: const Icon(Icons.table_restaurant, color: Color(0xFFB24516)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainServiceButton(BuildContext context, UserService userService) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -90,63 +172,74 @@ class AssistancePage extends StatelessWidget {
           ),
           elevation: 3,
         ),
-        onPressed: () => _showConfirmationDialog(
-          context,
-          title: "Demande envoyée",
-          message: "Un serveur va venir à votre table",
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.person_search, size: 28),
-            SizedBox(width: 15),
-            Text(
-              "DEMANDER UN SERVEUR",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+        onPressed: _isLoading ? null : () => _handleAssistanceRequest(context, userService),
+        child: _isLoading
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_search, size: 28),
+                  SizedBox(width: 15),
+                  Text(
+                    "DEMANDER UN SERVEUR",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildEmergencyButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.red,
-          side: const BorderSide(color: Colors.red, width: 2),
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: () => _showEmergencyDialog(context),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.emergency, size: 26),
-            SizedBox(width: 15),
-            Text(
-              "URGENCE",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _handleAssistanceRequest(BuildContext context, UserService userService) async {
+    // Check if user is logged in
+    if (!userService.isLoggedIn) {
+      _showErrorDialog(context, 'Vous devez être connecté pour demander de l\'assistance');
+      return;
+    }
+
+    // Check if table number is provided
+    if (_currentTableId == null || _currentTableId!.isEmpty) {
+      _showErrorDialog(context, 'Veuillez saisir votre numéro de table');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final success = await userService.createAssistanceRequest(_currentTableId!);
+      
+      if (success) {
+        _showSuccessDialog(context);
+      } else {
+        _showErrorDialog(context, 'Échec de l\'envoi de la demande. Veuillez réessayer.');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Une erreur est survenue. Veuillez réessayer.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
-  void _showConfirmationDialog(BuildContext context, {required String title, required String message}) {
+  void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -162,41 +255,32 @@ class AssistancePage extends StatelessWidget {
                 color: Color(0xFF3A5311),
               ),
               const SizedBox(height: 20),
-              Text(
-                title,
-                style: const TextStyle(
+              const Text(
+                'Demande envoyée !',
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 15),
               Text(
-                message,
+                'Un serveur va venir à la table ${_currentTableId} dans quelques instants.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 25),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler'),
-                    ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3A5311),
                   ),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3A5311),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showSuccessSnackbar(context, "Serveur notifié - en route vers vous");
-                      },
-                      child: const Text('Confirmer'),
-                    ),
-                  ),
-                ],
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Go back to previous screen
+                  },
+                  child: const Text('OK'),
+                ),
               ),
             ],
           ),
@@ -205,7 +289,7 @@ class AssistancePage extends StatelessWidget {
     );
   }
 
-  void _showEmergencyDialog(BuildContext context) {
+  void _showErrorDialog(BuildContext context, String message) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -218,64 +302,35 @@ class AssistancePage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.warning_amber_rounded,
+                Icons.error_outline,
                 size: 60,
                 color: Colors.red,
               ),
               const SizedBox(height: 20),
               const Text(
-                "Urgence signalée",
+                'Erreur',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 15),
-              const Text(
-                "Un membre du personnel arrive immédiatement",
+              Text(
+                message,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 25),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Annuler'),
-                    ),
-                  ),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showSuccessSnackbar(context, "Alerte urgente envoyée !");
-                      },
-                      child: const Text('Confirmer'),
-                    ),
-                  ),
-                ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showSuccessSnackbar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF3A5311),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        duration: const Duration(seconds: 2),
       ),
     );
   }

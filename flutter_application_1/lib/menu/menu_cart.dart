@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../cart_service.dart';
 
-class CartPage extends StatelessWidget {
+class CartPage extends StatefulWidget {
   const CartPage({Key? key}) : super(key: key);
+    @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  String? _selectedTableId;
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +203,35 @@ class CartPage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // AJOUTER CE WIDGET POUR LA SÉLECTION DE TABLE
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedTableId,
+                hint: const Text('Sélectionner une table'),
+                isExpanded: true,
+                items: List.generate(7, (index) => 'table${index + 1}')
+                    .map((tableId) => DropdownMenuItem<String>(
+                          value: tableId,
+                          child: Text('Table ${tableId.substring(5)}'),
+                        ))
+                    .toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedTableId = newValue;
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
@@ -282,9 +317,13 @@ class CartPage extends StatelessWidget {
           const SizedBox(height: 20),
           
           ElevatedButton(
-            onPressed: () => cartService.confirmOrder(context),
+            onPressed: _selectedTableId == null 
+                ? null  // Désactiver si aucune table sélectionnée
+                : () => cartService.confirmOrder(context, _selectedTableId!),  // Passer la table
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
+              backgroundColor: _selectedTableId == null 
+                  ? Colors.grey 
+                  : const Color(0xFF4CAF50),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 15),
               shape: RoundedRectangleBorder(
@@ -292,9 +331,11 @@ class CartPage extends StatelessWidget {
               ),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text(
-              'CONFIRMER LA COMMANDE',
-              style: TextStyle(
+            child: Text(
+              _selectedTableId == null 
+                  ? 'SÉLECTIONNER UNE TABLE' 
+                  : 'CONFIRMER LA COMMANDE',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
