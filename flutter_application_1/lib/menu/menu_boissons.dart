@@ -32,15 +32,35 @@ class _MenuBoissonPageState extends State<MenuBoissonPage> {
     return favorisService.estFavori(id);
   }
 
-  void _toggleFavorite(FavorisService favorisService, Item boisson) {
-    setState(() {
-      if (_isFavorite(favorisService, boisson.id)) {
-        favorisService.supprimerFavori(boisson.id);
-      } else {
-        favorisService.ajouterFavori(boisson.toMap());
-      }
-    });
+void _toggleFavorite(FavorisService favorisService, Item plat) async {
+  try {
+    await favorisService.toggleFavoriAPI(plat.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(favorisService.estFavori(plat.id) 
+          ? 'Added to favorites' 
+          : 'Removed from favorites'),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
+// Dans menu_favoris.dart
+Future<void> _refreshFavorites() async {
+  try {
+    await Provider.of<FavorisService>(context, listen: false).chargerFavorisAPI();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur de chargement: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -262,13 +282,6 @@ class _MenuBoissonPageState extends State<MenuBoissonPage> {
                       overflow: TextOverflow.ellipsis),
                   Text('${boisson.prix} DA', style: const TextStyle(color: Colors.white, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Colors.amber, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${boisson.pointsFidelite} pts', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -342,9 +355,6 @@ class _MenuBoissonPageState extends State<MenuBoissonPage> {
                         const SizedBox(height: 10),
                         Text('${_selectedBoisson!.prix} DA',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-                        const SizedBox(height: 10),
-                        Text('Points fidélité: ${_selectedBoisson!.pointsFidelite}',
-                            style: const TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -426,13 +436,7 @@ class _MenuBoissonPageState extends State<MenuBoissonPage> {
                               nom: _selectedBoisson!.nom,
                               prix: _selectedBoisson!.prix.toDouble(),
                               imageUrl: _selectedBoisson!.image,
-                              pointsFidelite: _selectedBoisson!.pointsFidelite,
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(
-                                  '${_selectedBoisson!.nom} ajouté à votre commande (+${_selectedBoisson!.pointsFidelite} pts)'),
-                              duration: const Duration(seconds: 1),
-                            ));
                             _closeDetails();
                           },
                           child: const Text('COMMANDER', style: TextStyle(fontSize: 18)),

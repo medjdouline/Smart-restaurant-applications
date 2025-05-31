@@ -46,4 +46,17 @@ class Dish {
       ingredients: ingredients ?? this.ingredients,
     );
   }
+  factory Dish.fromJson(Map<String, dynamic> json) {
+  return Dish(
+    id: json['id'] ?? '',
+    name: json['name'] ?? '',
+    imageUrl: json['imageUrl'] ?? 'assets/images/default_dish.jpg',
+    description: json['description'] ?? '',
+    price: (json['price'] ?? 0).toDouble(),
+    isFavorite: json['isFavorite'] ?? false,
+    category: json['category'] ?? '',
+    subCategory: json['subCategory'] ?? '',
+    ingredients: json['ingredients'] ?? '',
+  );
+}
 }

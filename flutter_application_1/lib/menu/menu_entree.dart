@@ -32,15 +32,35 @@ class _MenuEntreePageState extends State<MenuEntreePage> {
     return favorisService.estFavori(id);
   }
 
-  void _toggleFavorite(FavorisService favorisService, Item entree) {
-    setState(() {
-      if (_isFavorite(favorisService, entree.id)) {
-        favorisService.supprimerFavori(entree.id);
-      } else {
-        favorisService.ajouterFavori(entree.toMap());
-      }
-    });
+void _toggleFavorite(FavorisService favorisService, Item plat) async {
+  try {
+    await favorisService.toggleFavoriAPI(plat.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(favorisService.estFavori(plat.id) 
+          ? 'Added to favorites' 
+          : 'Removed from favorites'),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
+// Dans menu_favoris.dart
+Future<void> _refreshFavorites() async {
+  try {
+    await Provider.of<FavorisService>(context, listen: false).chargerFavorisAPI();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur de chargement: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -262,13 +282,7 @@ class _MenuEntreePageState extends State<MenuEntreePage> {
                       overflow: TextOverflow.ellipsis),
                   Text('${entree.prix} DA', style: const TextStyle(color: Colors.white, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Colors.amber, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${entree.pointsFidelite} pts', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
-                  ),
+
                 ],
               ),
             ),
@@ -342,9 +356,6 @@ class _MenuEntreePageState extends State<MenuEntreePage> {
                         const SizedBox(height: 10),
                         Text('${_selectedEntree!.prix} DA',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-                        const SizedBox(height: 10),
-                        Text('Points fidélité: ${_selectedEntree!.pointsFidelite}',
-                            style: const TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -426,13 +437,7 @@ class _MenuEntreePageState extends State<MenuEntreePage> {
                               nom: _selectedEntree!.nom,
                               prix: _selectedEntree!.prix.toDouble(),
                               imageUrl: _selectedEntree!.image,
-                              pointsFidelite: _selectedEntree!.pointsFidelite,
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(
-                                  '${_selectedEntree!.nom} ajouté à votre commande (+${_selectedEntree!.pointsFidelite} pts)'),
-                              duration: const Duration(seconds: 1),
-                            ));
                             _closeDetails();
                           },
                           child: const Text('COMMANDER', style: TextStyle(fontSize: 18)),

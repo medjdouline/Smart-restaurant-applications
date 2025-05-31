@@ -100,8 +100,8 @@ class ProfileScreen extends StatelessWidget {
           break;
         case 'diets':
           allOptions = [
-            'Halal', 'Cacher', 'Sans lactose', 'Sans sucre', 
-            'Faible en sel', 'Sans œuf'
+            'Cacher', 'Sans lactose', 'Sans sucre', 
+            'Faible en sel', 'Sans œuf','Végétarien', 'Végétalien', 'Keto','Sans gluten'
           ];
           title = 'Modifier vos régimes';
           break;
@@ -387,56 +387,6 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundColor: bgColor.withOpacity(0.5),
-                          child: userService.photoUrl != null
-                              ? ClipOval(
-                                  child: Image.network(
-                                    userService.photoUrl!,
-                                    width: 70,
-                                    height: 70,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => const Icon(
-                                      Icons.person,
-                                      size: 40,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : const Icon(Icons.person, size: 40, color: Colors.white),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: darkGreenColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.edit,
-                              color: whiteColor,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Modifier la photo',
-                      style: TextStyle(
-                        color: darkGreenColor,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    
                     // Section Informations utilisateur
                     Container(
                       width: double.infinity,

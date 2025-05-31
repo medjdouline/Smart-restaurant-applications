@@ -56,25 +56,37 @@ class ProfileRepository {
   }
 
   // NEW: Get user's dietary restrictions from API
-Future<ApiResponse> getRestrictions() async {
-  try {
-    final response = await _profileApiService.getRestrictions();
-    _logger.info('Restrictions retrieved: ${response.success}');
-    return response;
-  } catch (e) {
-    _logger.severe('Error getting restrictions: $e');
-    rethrow;
+  Future<ApiResponse> getRestrictions() async {
+    try {
+      final response = await _profileApiService.getRestrictions();
+      _logger.info('Restrictions retrieved: ${response.success}');
+      return response;
+    } catch (e) {
+      _logger.severe('Error getting restrictions: $e');
+      rethrow;
+    }
   }
-}
 
-Future<ApiResponse> updateRestrictions(List<String> restrictions) async {
-  try {
-    final response = await _profileApiService.updateRestrictions(restrictions);
-    _logger.info('Restrictions updated via API: ${response.success}');
-    return response;
-  } catch (e) {
-    _logger.severe('Error updating restrictions via API: $e');
-    rethrow;
+  Future<ApiResponse> updateRestrictions(List<String> restrictions) async {
+    try {
+      final response = await _profileApiService.updateRestrictions(restrictions);
+      _logger.info('Restrictions updated via API: ${response.success}');
+      return response;
+    } catch (e) {
+      _logger.severe('Error updating restrictions via API: $e');
+      rethrow;
+    }
   }
-}
+
+  // NEW: Get user's fidelity points from API
+  Future<ApiResponse> getFidelityPoints() async {
+    try {
+      final response = await _profileApiService.getFidelityPoints();
+      _logger.info('Fidelity points retrieved: ${response.success}');
+      return response;
+    } catch (e) {
+      _logger.severe('Error getting fidelity points: $e');
+      rethrow;
+    }
+  }
 }

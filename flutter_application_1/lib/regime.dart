@@ -16,7 +16,6 @@ class _DietPageState extends State<DietPage> {
     'Keto',
     'Sans lactose',
     'Sans gluten',
-    'Halal',
     'Autre'
   ];
 
@@ -26,7 +25,6 @@ class _DietPageState extends State<DietPage> {
     'Keto': 'keto.jpg',
     'Sans lactose': 'lactose_free.jpg',
     'Sans gluten': 'gluten_free.jpg',
-    'Halal': 'halal.jpg',
   };
 
   final Map<String, bool> selectedDiets = {};

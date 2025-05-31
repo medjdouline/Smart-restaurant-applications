@@ -11,10 +11,11 @@ urlpatterns = [
     path('auth/client/signup/step4/', client_signup_step4, name='client_signup_step4'),
     path('auth/client/signup/step5/', client_signup_step5, name='client_signup_step5'),
     path('auth/client/login/', client_login, name='client_login'),
-
+    path('reservations/', views.get_reservations, name='get_reservations'),
     # Profile endpoints
     path('profile/', views.view_client_profile, name='view_client_profile'),
     path('profile/update/', views.update_client_profile, name='update_client_profile'),
+
     
     # Orders endpoints
     path('orders/', views.get_orders_history, name='get_orders_history'),
@@ -27,7 +28,7 @@ urlpatterns = [
     path('favorites/remove/<str:plat_id>/', views.remove_favorite, name='remove_favorite'),
     
     # Reservations endpoints
-    path('reservations/', views.get_reservations, name='get_reservations'),
+
     path('reservations/create/', views.create_reservation, name='create_reservation'),
     path('reservations/<str:reservation_id>/', views.get_reservation_details, name='get_reservation_details'),
     path('reservations/<str:reservation_id>/cancel/', views.cancel_reservation, name='cancel_reservation'),
@@ -60,4 +61,5 @@ urlpatterns = [
     
     # Dashboard endpoint
     path('dashboard/', views.get_dashboard, name='get_dashboard'),
+    path('fidelity/points/', views.get_fidelity_points, name='get_fidelity_points'), #points de fidelite
 ]

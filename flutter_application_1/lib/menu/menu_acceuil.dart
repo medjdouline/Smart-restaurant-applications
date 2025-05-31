@@ -15,13 +15,15 @@ import 'menu_cart.dart';
 import '../services/menu_service.dart';
 import '../models/item.dart';
 import '../points_fidelite_widget.dart';
-import 'package:provider/provider.dart';
+
 import '../order_history_service.dart';
 import './notifications.dart';
+import '../user_service.dart';
 import './assistance_button.dart';
 
 class MenuAcceuil extends StatefulWidget {
   const MenuAcceuil({Key? key}) : super(key: key);
+  
 
   @override
   State<MenuAcceuil> createState() => _MenuAcceuilState();
@@ -32,6 +34,8 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
   final ScrollController _scrollController = ScrollController();
   Item? _selectedPlat;
   double _currentRating = 0;
+  List<String> _recommendedDishIds = [];
+  bool _isLoadingRecommendations = false;
   List<String> notifications = [];
   List<NotificationModel> detailedNotifications = []; // New list for detailed notifications
   bool isLoadingNotifications = false;
@@ -41,14 +45,45 @@ class _MenuAcceuilState extends State<MenuAcceuil> {
     super.initState();
     _loadNotifications();
     _loadMenuData();
-    _loadUserFavorites();
+    _loadRecommendations();
   }
+
+  Future<void> _loadRecommendations() async {
+  final userService = Provider.of<UserService>(context, listen: false);
+  
+  // Don't load recommendations for guest users
+  if (userService.isGuest || !userService.isLoggedIn) {
+    debugPrint('Guest user or not logged in - skipping recommendations');
+    return;
+  }
+
+  try {
+    setState(() {
+      _isLoadingRecommendations = true;
+    });
+
+    debugPrint('Loading recommendations...');
+    _recommendedDishIds = await userService.getRecommendations();
+    
+    setState(() {
+      _isLoadingRecommendations = false;
+    });
+
+    debugPrint('Recommendations loaded: ${_recommendedDishIds.length} items');
+  } catch (e) {
+    debugPrint('Error loading recommendations: $e');
+    setState(() {
+      _isLoadingRecommendations = false;
+      _recommendedDishIds = [];
+    });
+  }
+}
 
   Future<void> _loadUserFavorites() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final favorisService = Provider.of<FavorisService>(context, listen: false);
-      await favorisService.chargerFavoris(user.uid);
+      await favorisService.chargerFavorisAPI();
     }
   }
 
@@ -106,6 +141,7 @@ Future<void> _loadNotifications() async {
     }
   }
 
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -127,16 +163,25 @@ Future<void> _loadNotifications() async {
     return favorisService.estFavori(id);
   }
 
-  Future<void> _toggleFavorite(FavorisService favorisService, Item plat) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    if (_isFavorite(favorisService, plat.id)) {
-      await favorisService.supprimerFavoriFirebase(plat.id, user.uid);
-    } else {
-      await favorisService.ajouterFavoriFirebase(plat.toMap(), user.uid);
-    }
+void _toggleFavorite(FavorisService favorisService, Item plat) async {
+  try {
+    await favorisService.toggleFavoriAPI(plat.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(favorisService.estFavori(plat.id) 
+          ? 'Added to favorites' 
+          : 'Removed from favorites'),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   void _showNotifications() {
   // Navigation vers la nouvelle page de notifications au lieu d'une dialog
@@ -375,13 +420,6 @@ Widget _buildNavButton(int index, IconData icon, String label) {
                     children: [
                       Icon(Icons.star, color: Colors.amber, size: 12),
                       const SizedBox(width: 4),
-                      Text(
-                        '${plat.pointsFidelite} pts',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
-                      ),
                     ],
                   ),
                 ],
@@ -484,14 +522,7 @@ Widget _buildNavButton(int index, IconData icon, String label) {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    'Points fidélité: ${_selectedPlat!.pointsFidelite}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+
                   const SizedBox(height: 10),
                   StreamBuilder<DocumentSnapshot>(
                     stream: ratingService.getRatingStream(_selectedPlat!.id),
@@ -636,15 +667,9 @@ Widget _buildNavButton(int index, IconData icon, String label) {
                         nom: _selectedPlat!.nom,
                         prix: _selectedPlat!.prix.toDouble(),
                         imageUrl: _selectedPlat!.image,
-                        pointsFidelite: _selectedPlat!.pointsFidelite,
                       );
                       
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${_selectedPlat!.nom} ajouté à votre commande (+${_selectedPlat!.pointsFidelite} pts)'),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
+
                       _closeDetails();
                     },
                     child: const Text(
@@ -715,24 +740,7 @@ Widget _buildNavButton(int index, IconData icon, String label) {
                   ),
                 ),
               ),
-            if (cartService.reductionDisponible || cartService.reductionActive)
-              Positioned(
-                bottom: 2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: cartService.reductionActive ? Colors.green : Colors.amber,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    cartService.reductionActive ? 'OFFRE APPLIQUÉE' : '-50%',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+
           ],
         ),
       ),
@@ -745,58 +753,48 @@ Widget _buildServeurButton() {
   );
 }
 
-  Widget _buildContent(MenuService menuService, FavorisService favorisService) {
-    if (menuService.isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: Colors.brown),
-            SizedBox(height: 16),
-            Text('Chargement des plats...', style: TextStyle(color: Colors.brown, fontSize: 16)),
-          ],
-        ),
-      );
-    }
+Widget _buildContent(MenuService menuService, FavorisService favorisService) {
+  if (menuService.isLoading) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: Colors.brown),
+          SizedBox(height: 16),
+          Text('Chargement des plats...', style: TextStyle(color: Colors.brown, fontSize: 16)),
+        ],
+      ),
+    );
+  }
 
-    if (menuService.errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[700]),
-            const SizedBox(height: 16),
-            Text('Erreur de chargement', style: TextStyle(color: Colors.red[700], fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(menuService.errorMessage!, style: const TextStyle(color: Colors.black54), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => menuService.refresh(),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
-              child: const Text('Réessayer'),
-            ),
-          ],
-        ),
-      );
-    }
+  // Only use API recommendations (which include fallbacks)
+  List<Item> platsAccueil = [];
+  
+  if (_recommendedDishIds.isNotEmpty) {
+    platsAccueil = _recommendedDishIds
+        .map((id) => menuService.findItemById(id))
+        .where((item) => item != null)
+        .cast<Item>()
+        .toList();
+  }
 
-    // Créer une liste mixte pour l'accueil
-    final List<Item> platsAccueil = [
-      ...menuService.entrees.take(3),
-      ...menuService.plats.take(3),
-      ...menuService.desserts.take(2),
-      ...menuService.boissons.take(2),
-    ];
+  if (platsAccueil.isEmpty && !_isLoadingRecommendations) {
+    return const Center(
+      child: Text('Aucun plat disponible', style: TextStyle(color: Colors.brown, fontSize: 18)),
+    );
+  }
 
-    if (platsAccueil.isEmpty) {
-      return const Center(
-        child: Text('Aucun plat disponible', style: TextStyle(color: Colors.brown, fontSize: 18)),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (_isLoadingRecommendations)
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: CircularProgressIndicator(color: Colors.brown),
+          ),
+        )
+      else
         Padding(
           padding: const EdgeInsets.only(top: 16.0, bottom: 12.0),
           child: Row(
@@ -821,6 +819,7 @@ Widget _buildServeurButton() {
           ),
         ),
         
+      if (!_isLoadingRecommendations && platsAccueil.isNotEmpty)
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -908,6 +907,7 @@ Widget _buildServeurButton() {
           ),
         ),
         
+      if (!_isLoadingRecommendations)
         Padding(
           padding: const EdgeInsets.only(top: 20.0, bottom: 20.0),
           child: Center(
@@ -934,10 +934,9 @@ Widget _buildServeurButton() {
             ),
           ),
         ),
-      ],
-    );
-  }
-
+    ],
+  );
+}
   @override
   Widget build(BuildContext context) {
     final userService = Provider.of<UserService>(context);

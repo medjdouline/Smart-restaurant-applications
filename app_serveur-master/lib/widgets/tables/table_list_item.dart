@@ -17,11 +17,11 @@ class TableListItem extends StatelessWidget {
     // Déterminer la couleur de la table en fonction de son statut
     Color tableColor;
     if (table.isOccupied) {
-      tableColor = AppTheme.secondaryColor; // Rouge pour occupée
+      tableColor = Colors.red; // Rouge pour occupée
     } else if (table.isReserved) {
-      tableColor = const Color(0xFFAA2C10); // Violet pour réservée
+      tableColor = Colors.blue; // Bleu pour réservée
     } else {
-      tableColor = const Color(0xFFE19356); // Orange pour libre
+      tableColor = Colors.green; // Vert pour libre
     }
 
     // Déterminer le statut affiché

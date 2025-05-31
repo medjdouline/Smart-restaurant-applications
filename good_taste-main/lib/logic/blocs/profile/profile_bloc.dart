@@ -48,6 +48,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<ProfileRestrictionsLoaded>(_onRestrictionsLoaded);
     on<ProfileRestrictionToggled>(_onRestrictionToggled);
     on<ProfileRestrictionsSubmitted>(_onRestrictionsSubmitted);
+    on<ProfileFidelityPointsLoaded>(_onFidelityPointsLoaded);
   }
 
   void _onAllergiesUpdated(
@@ -493,4 +494,36 @@ void _onRestrictionsSubmitted(
       ));
     }
   }
+  void _onFidelityPointsLoaded(
+  ProfileFidelityPointsLoaded event,
+  Emitter<ProfileState> emit,
+) async {
+  emit(state.copyWith(fidelityPointsStatus: FidelityPointsLoadingStatus.loading));
+  
+  try {
+    final response = await _profileRepository.getFidelityPoints();
+    
+    if (response.success) {
+      final points = response.data['points'] ?? 0;
+      _logger.info('Fidelity points loaded: $points');
+      
+      emit(state.copyWith(
+        fidelityPoints: points,
+        fidelityPointsStatus: FidelityPointsLoadingStatus.success,
+        fidelityPointsErrorMessage: null,
+      ));
+    } else {
+      emit(state.copyWith(
+        fidelityPointsStatus: FidelityPointsLoadingStatus.failure,
+        fidelityPointsErrorMessage: 'Impossible de charger les points de fidélité',
+      ));
+    }
+  } catch (e) {
+    _logger.severe('Error loading fidelity points: $e');
+    emit(state.copyWith(
+      fidelityPointsStatus: FidelityPointsLoadingStatus.failure,
+      fidelityPointsErrorMessage: 'Erreur lors du chargement des points de fidélité',
+    ));
+  }
+}
 }

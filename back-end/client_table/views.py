@@ -6,9 +6,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from core.permissions import IsClient, IsGuest, IsTableClient
 from core.firebase_crud import firebase_crud
 from firebase_admin import firestore
+from firebase_admin import firestore
 import logging
 from django.utils import timezone
 from datetime import datetime
+from firebase_admin import auth  # Add this import at the top
 from core.firebase_crud import firebase_crud
 import logging
 
@@ -185,17 +187,6 @@ def clean_text_encoding(text):
     return cleaned_text
 
 
-# 3. Django Settings Fix - Add to settings.py
-# Ensure proper UTF-8 handling in Django settings
-DATABASES = {
-    'default': {
-        # ... your database config
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'use_unicode': True,
-        },
-    }
-}
 
 # File encoding
 FILE_CHARSET = 'utf-8'
@@ -288,40 +279,74 @@ def delete_order_history(request, order_id):
 # Favorites Endpoints
 # ==================
 @api_view(['POST'])
-@permission_classes([AllowAny])  # Changed from IsClient to IsTableClient
+@permission_classes([AllowAny])
 def create_assistance_request(request):
-    """Create a new assistance request"""
+    """Create a new assistance request for both authenticated and guest clients"""
     try:
-        client_id = request.user.uid
-        
         # Validate required fields
         if 'table_id' not in request.data:
             return Response({'error': 'Table ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         table_id = request.data['table_id']
+        user_type = request.data.get('user_type', 'registered')
         
         # Check if table exists
         table = firebase_crud.get_doc('tables', table_id)
         if not table:
             return Response({'error': 'Table not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Create assistance request
-        assistance_data = {
-            'idC': client_id,
-            'idTable': table_id,
-            'etat': 'non traitee',
-            'createdAt': firestore.SERVER_TIMESTAMP
-        }
+        # Handle different user types
+        if user_type == 'guest':
+            # For guest users
+            guest_name = request.data.get('guest_name', 'Guest User')
+            
+            assistance_data = {
+                'idC': None,  # No client ID for guests
+                'guestName': guest_name,
+                'userType': 'guest',
+                'idTable': table_id,
+                'etat': 'non traitee',
+                'createdAt': firestore.SERVER_TIMESTAMP
+            }
+            
+            logger.info(f"Creating assistance request for guest: {guest_name} at table {table_id}")
+            
+        else:
+            # For authenticated users
+            if not hasattr(request.user, 'uid') or not request.user.uid:
+                return Response({'error': 'Authentication required for registered users'}, 
+                              status=status.HTTP_401_UNAUTHORIZED)
+            
+            client_id = request.user.uid
+            
+            assistance_data = {
+                'idC': client_id,
+                'guestName': None,
+                'userType': 'registered',
+                'idTable': table_id,
+                'etat': 'non traitee',
+                'createdAt': firestore.SERVER_TIMESTAMP
+            }
+            
+            logger.info(f"Creating assistance request for client {client_id} at table {table_id}")
         
+        # Create assistance request in Firestore
         assistance_id = firebase_crud.create_doc('demandeAssistance', assistance_data)
+        
+        logger.info(f"Assistance request created successfully with ID: {assistance_id}")
         
         return Response({
             'id': assistance_id,
-            'message': 'Assistance request created successfully'
-        })
+            'message': 'Assistance request created successfully',
+            'user_type': user_type
+        }, status=status.HTTP_201_CREATED)
+        
     except Exception as e:
         logger.error(f"Error creating assistance request: {str(e)}")
-        return Response({'error': 'Failed to create assistance request'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({
+            'error': 'Failed to create assistance request',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -330,26 +355,26 @@ def get_favorites(request):
     try:
         client_id = request.user.uid
         
-        # Get client document
-        client = firebase_crud.get_doc('clients', client_id)
-        if not client:
-            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Get favorites list
-        favorites = client.get('favorites', [])
+        # Query favoris collection for this client
+        favoris_docs = firebase_crud.query_collection('favoris', 'client_id', '==', client_id)
         
         # Get details for each favorite dish
         favorite_dishes = []
-        for plat_id in favorites:
-            plat = firebase_crud.get_doc('plats', plat_id)
-            if plat:
-                favorite_dishes.append({
-                    'id': plat_id,
-                    'nom': plat.get('nom', ''),
-                    'description': plat.get('description', ''),
-                    'prix': plat.get('prix', 0),
-                    'note': plat.get('note', 0)
-                })
+        for favoris_doc in favoris_docs:
+            plat_id = favoris_doc.get('plat_id')
+            if plat_id:
+                plat = firebase_crud.get_doc('plats', plat_id)
+                if plat:
+                    favorite_dishes.append({
+                        'id': plat_id,
+                        'favoris_id': favoris_doc.get('id'),  # Include favoris document ID for deletion
+                        'nom': plat.get('nom', ''),
+                        'description': plat.get('description', ''),
+                        'prix': plat.get('prix', 0),
+                        'note': plat.get('note', 0),
+                        'ingredients': plat.get('ingredients', ''),  # Add ingredients field
+                        'pointsFidelite': plat.get('pointsFidelite', 0)  # Add loyalty points if available
+                    })
         
         return Response(favorite_dishes)
     except Exception as e:
@@ -368,22 +393,31 @@ def add_favorite(request, plat_id):
         if not plat:
             return Response({'error': 'Dish not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get client's current favorites
-        client = firebase_crud.get_doc('clients', client_id)
-        if not client:
-            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Check if already in favorites using the additional where parameters
+        existing_favoris = firebase_crud.query_collection(
+            'favoris', 
+            'client_id', '==', client_id,
+            where_field='plat_id', 
+            where_op='==', 
+            where_value=plat_id
+        )
         
-        favorites = client.get('favorites', [])
-        
-        # Check if already in favorites
-        if plat_id in favorites:
+        if existing_favoris:
             return Response({'message': 'Dish already in favorites'})
         
-        # Add to favorites
-        favorites.append(plat_id)
-        firebase_crud.update_doc('clients', client_id, {'favorites': favorites})
+        # Add to favoris collection
+        favoris_data = {
+            'client_id': client_id,
+            'plat_id': plat_id,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
         
-        return Response({'message': 'Dish added to favorites'})
+        favoris_id = firebase_crud.create_doc('favoris', favoris_data)
+        
+        return Response({
+            'message': 'Dish added to favorites',
+            'favoris_id': favoris_id
+        }, status=status.HTTP_201_CREATED)
     except Exception as e:
         logger.error(f"Error adding favorite: {str(e)}")
         return Response({'error': 'Failed to add favorite'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -395,140 +429,40 @@ def remove_favorite(request, plat_id):
     try:
         client_id = request.user.uid
         
-        # Get client's current favorites
-        client = firebase_crud.get_doc('clients', client_id)
-        if not client:
-            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Find the favoris document to delete using the additional where parameters
+        favoris_docs = firebase_crud.query_collection(
+            'favoris', 
+            'client_id', '==', client_id,
+            where_field='plat_id', 
+            where_op='==', 
+            where_value=plat_id
+        )
         
-        favorites = client.get('favorites', [])
-        
-        # Check if in favorites
-        if plat_id not in favorites:
+        if not favoris_docs:
             return Response({'error': 'Dish not in favorites'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Remove from favorites
-        favorites.remove(plat_id)
-        firebase_crud.update_doc('clients', client_id, {'favorites': favorites})
+        # Delete the favoris document (should only be one)
+        favoris_doc = favoris_docs[0]
+        favoris_id = favoris_doc.get('id')
         
-        return Response({'message': 'Dish removed from favorites'})
+        firebase_crud.delete_doc('favoris', favoris_id)
+        
+        return Response({'message': 'Dish removed from favorites'}, status=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         logger.error(f"Error removing favorite: {str(e)}")
         return Response({'error': 'Failed to remove favorite'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
 
 # ==================
 # Menu Endpoints
 # ==================
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_menus(request):
-    """Get all menus"""
-    try:
-        menus = firebase_crud.get_all_docs('menus')
-        
-        # Get dishes for each menu
-        menu_list = []
-        for menu in menus:
-            # Get menu-plat relations
-            menu_plats = firebase_crud.query_collection(
-                'menu_plat',
-                'idM',
-                '==',
-                menu['id']
-            )
-            
-            # Get plat details
-            dishes = []
-            for mp in menu_plats:
-                plat_id = mp.get('idP')
-                plat = firebase_crud.get_doc('plats', plat_id)
-                if plat:
-                    dishes.append({
-                        'id': plat_id,
-                        'nom': plat.get('nom', ''),
-                        'description': plat.get('description', ''),
-                        'prix': plat.get('prix', 0)  
-                    })
-            
-            menu_list.append({
-                'id': menu['id'],
-                'nomMenu': menu.get('nomMenu', ''),
-                'dishes': dishes
-            })
-        
-        return Response(menu_list)
-    except Exception as e:
-        logger.error(f"Error getting menus: {str(e)}")
-        return Response({'error': 'Failed to retrieve menus'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_categories(request):
-    """Get all dish categories"""
-    try:
-        categories = firebase_crud.get_all_docs('categories')
-        category_list = [{
-            'id': cat['id'],
-            'nomCat': cat.get('nomCat', '')
-        } for cat in categories]
-        
-        return Response(category_list)
-    except Exception as e:
-        logger.error(f"Error getting categories: {str(e)}")
-        return Response({'error': 'Failed to retrieve categories'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_subcategory_items(request, subcategory_id):
-    """Get all dishes/items for a specific subcategory"""
-    try:
-        # Verify subcategory exists
-        subcategory = firebase_crud.get_doc('sous_categories', subcategory_id)
-        if not subcategory:
-            return Response({'error': 'Subcategory not found'}, status=404)
-        
-        # Get dishes for this subcategory
-        dishes = firebase_crud.query_collection(
-            'plats',
-            'idSousCat',
-            '==',
-            subcategory_id
-        )
-        
-        # Format dishes
-        dishes_list = []
-        for dish in dishes:
-            dishes_list.append({
-                'id': dish.get('id'),
-                'nom': dish.get('nom', ''),
-                'description': dish.get('description', ''),
-                'prix': dish.get('prix', 0),
-                'ingredients': dish.get('ingredients', []),
-                'pointsFidelite': dish.get('pointsFidelite', 0)
-            })
-        
-        return Response({
-            'subcategory': {
-                'id': subcategory_id,
-                'nom': subcategory.get('nomSousCat', '')
-            },
-            'items': dishes_list
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting items: {str(e)}")
-        return Response({'error': str(e)}, status=500)
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_new_plats(request):
-    print("=== get_new_plats function called ===")  # Add this line
+    print("=== get_new_plats function called ===")
     """
     Get all plats with isNew attribute set to true
     Returns:
@@ -537,7 +471,7 @@ def get_new_plats(request):
     """
     
     try:
-        print("Querying firebase for new plats...")  # Add this line
+        print("Querying firebase for new plats...")
         # Query all plats where isNew = true
         new_plats = firebase_crud.query_collection(
             'plats',
@@ -546,7 +480,7 @@ def get_new_plats(request):
             True
         )
         
-        # Format the response
+        # Format the response with proper UTF-8 handling
         plats_list = []
         for plat in new_plats:
             plats_list.append({
@@ -557,55 +491,24 @@ def get_new_plats(request):
                 'categorie': plat.get('idCat', ''),
                 'sous_categorie': plat.get('idSousCat', ''),
                 'note': plat.get('note', 0),
-                'image_url': plat.get('image_url', '')  # Include if available
+                'image_url': plat.get('image_url', '')
             })
         
-        return Response(plats_list)
-    
+        # Create response with explicit UTF-8 encoding
+        response = Response(plats_list)
+        response['Content-Type'] = 'application/json; charset=utf-8'
+        return response
+        
     except Exception as e:
         logger.error(f"Error getting new plats: {str(e)}")
-        return Response(
+        error_response = Response(
             {'error': 'Failed to retrieve new plats'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+        error_response['Content-Type'] = 'application/json; charset=utf-8'
+        return error_response
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_category_subcategories(request, category_id):
-    try:
-        # Vérifiez que la catégorie existe
-        category = firebase_crud.get_doc('categories', category_id)
-        if not category:
-            return Response({'error': 'Catégorie non trouvée'}, status=404)
-        
-        # Récupérez les sous-catégories
-        subcategories = firebase_crud.query_collection(
-            'sous_categories',
-            'idCat',
-            '==',
-            category_id
-        )
-        
-        # Formatage de la réponse
-        response_data = {
-            'category': {
-                'id': category_id,
-                'name': category.get('nomCat', '')
-            },
-            'subcategories': [
-                {
-                    'id': subcat.get('id'),
-                    'name': subcat.get('nomSousCat', ''),
-                    'category_id': subcat.get('idCat', '')
-                }
-                for subcat in subcategories
-            ]
-        }
-        
-        return Response(response_data)
-        
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
+
     
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -758,55 +661,273 @@ def update_restrictions(request):
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_recommendations(request):
+    """
+    Get recommendations for the authenticated client
+    Based purely on user preferences mapped to subcategories
+    """
     try:
         client_id = request.user.uid
-        # Query for recommandations without sorting in the query
-        recommendations = firebase_crud.query_collection(
-            'recommandations',
-            'idC',
+        logger.info(f"Getting recommendations for client: {client_id}")
+        
+        # Get client data
+        current_client = firebase_crud.get_doc('clients', client_id)
+        if not current_client:
+            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        current_preferences = current_client.get('preferences', [])
+        if not current_preferences:
+            logger.info(f"Client {client_id} has no preferences set - using fallback")
+            return _get_fallback_recommendations('no_preferences')
+        
+        logger.info(f"Client {client_id} preferences: {current_preferences}")
+        
+        # Generate preference-based recommendations
+        recommendations = _generate_preference_based_recommendations(current_preferences, client_id)
+        
+        return Response({
+            'dish_ids': recommendations['dish_ids'],
+            'source': 'preference_based',
+            'count': len(recommendations['dish_ids']),
+            'based_on_preferences': current_preferences,
+            'subcategories_used': recommendations['subcategories_used']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting recommendations for client {client_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            'error': f'Failed to get recommendations: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def _generate_preference_based_recommendations(preferences, client_id):
+    """
+    Generate recommendations based on user preferences mapped to subcategories
+    Returns exactly 8 recommendations distributed based on number of preferences
+    """
+    import random
+    from datetime import datetime
+    
+    # Preference to subcategory mapping (using actual idSousCat values)
+    PREFERENCE_MAPPING = {
+        'Soupes et Potages': ['scat_soupe'],
+        'Salades et Crudités': ['scat_salade'],
+        'Poissons et Fruits de mer': ['scat_poisson'],
+        'Cuisine traditionnelle': ['scat_couscous', 'scat_tagine'],
+        'Viandes': ['scat_viande'],
+        'Sandwichs et burgers': ['scat_feuillete'],
+        'Végétariens': ['scat_vegetarien'],
+        'Crémes et Mousses': ['scat_gateau'],
+        'Pâtisseries': ['scat_patisserie'],
+        'Fruits et Sorbets': ['scat_froid']
+    }
+    
+    # Determine distribution based on number of preferences
+    num_preferences = len(preferences)
+    if num_preferences == 1:
+        distribution = [8]
+    elif num_preferences == 2:
+        distribution = [4, 4]
+    else:  # 3 or more preferences
+        distribution = [3, 3, 2]
+        preferences = preferences[:3]  # Only use first 3 preferences
+    
+    recommended_dish_ids = []
+    subcategories_used = []
+    
+    # Use client_id and current time to create seed for randomization
+    # This ensures different results for same client on different calls
+    random_seed = hash(f"{client_id}_{datetime.now().strftime('%Y%m%d%H')}") % 10000
+    random.seed(random_seed)
+    
+    for i, preference in enumerate(preferences):
+        if i >= len(distribution):
+            break
+            
+        needed_count = distribution[i]
+        subcategories = PREFERENCE_MAPPING.get(preference, [])
+        
+        if not subcategories:
+            logger.warning(f"No subcategory mapping found for preference: {preference}")
+            continue
+        
+        # Handle special case for 'Cuisine traditionnelle' with multiple subcategories
+        if len(subcategories) > 1 and preference == 'Cuisine traditionnelle':
+            # Split between Couscous and Tagine (2 each for most cases)
+            couscous_count = needed_count // 2
+            tagine_count = needed_count - couscous_count
+            
+            # Get dishes from Couscous
+            couscous_dishes = _get_dishes_from_subcategory('scat_couscous', couscous_count)
+            recommended_dish_ids.extend(couscous_dishes)
+            if couscous_dishes:
+                subcategories_used.append('scat_couscous')
+            
+            # Get dishes from Tagine
+            tagine_dishes = _get_dishes_from_subcategory('scat_tagine', tagine_count)
+            recommended_dish_ids.extend(tagine_dishes)
+            if tagine_dishes:
+                subcategories_used.append('scat_tagine')
+        else:
+            # Single subcategory
+            subcat = subcategories[0]
+            dishes = _get_dishes_from_subcategory(subcat, needed_count)
+            recommended_dish_ids.extend(dishes)
+            if dishes:
+                subcategories_used.append(subcat)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_dish_ids = []
+    for dish_id in recommended_dish_ids:
+        if dish_id not in seen:
+            seen.add(dish_id)
+            unique_dish_ids.append(dish_id)
+    
+    # If we don't have enough recommendations (less than 8), pad with random dishes
+    if len(unique_dish_ids) < 8:
+        logger.info(f"Only found {len(unique_dish_ids)} recommendations, padding with random dishes")
+        remaining_needed = 8 - len(unique_dish_ids)
+        additional_dishes = _get_random_dishes(remaining_needed, exclude_ids=set(unique_dish_ids))
+        unique_dish_ids.extend(additional_dishes)
+    
+    # Ensure we have exactly 8 recommendations
+    unique_dish_ids = unique_dish_ids[:8]
+    
+    logger.info(f"Generated {len(unique_dish_ids)} preference-based recommendations")
+    
+    return {
+        'dish_ids': unique_dish_ids,
+        'subcategories_used': subcategories_used
+    }
+
+
+def _get_dishes_from_subcategory(subcategory, count):
+    """
+    Get random dishes from a specific subcategory
+    """
+    import random
+    
+    try:
+        logger.info(f"Fetching {count} dishes from subcategory: {subcategory}")
+        
+        # Query dishes from 'plats' collection by 'idSousCat'
+        dishes = firebase_crud.query_collection(
+            'plats',
+            'idSousCat',
             '==',
-            client_id
+            subcategory
         )
         
-        # Sort in memory
-        recommendations = sorted(recommendations, key=lambda x: x.get('date_generation', ''), reverse=True)
-
-        if not recommendations:
-            return Response({'message': 'No recommendations found'}, status=status.HTTP_404_NOT_FOUND)
-
-        recommendation_id = recommendations[0]['id']
-
-        # Get recommended dishes
-        recommended_plats = firebase_crud.query_collection(
-            'recommandation_plat',
-            'idR',
-            '==',
-            recommendation_id
-        )
-
-        # Get details for each recommended dish
-        plats_details = []
-        for rec_plat in recommended_plats:
-            plat_id = rec_plat.get('idP')
-            plat = firebase_crud.get_doc('plats', plat_id)
-
-            if plat:
-                plats_details.append({
-                    'id': plat_id,
-                    'nom': plat.get('nom', ''),
-                    'description': plat.get('description', ''),
-                    'prix': plat.get('prix', 0),
-                    'note': plat.get('note', 0)
-                })
-
-        return Response({
-            'recommendation_id': recommendation_id,
-            'date_generated': recommendations[0].get('date_generation', ''),
-            'plats': plats_details
-        })
+        if not dishes:
+            logger.warning(f"No dishes found for subcategory: {subcategory}")
+            return []
+        
+        # Extract dish IDs
+        dish_ids = []
+        for dish in dishes:
+            dish_id = dish.get('id')
+            if dish_id:
+                dish_ids.append(str(dish_id))
+        
+        if not dish_ids:
+            logger.warning(f"No valid dish IDs found for subcategory: {subcategory}")
+            return []
+        
+        # Randomly select the requested number of dishes
+        selected_count = min(count, len(dish_ids))
+        selected_dishes = random.sample(dish_ids, selected_count)
+        
+        logger.info(f"Selected {len(selected_dishes)} dishes from {len(dish_ids)} available in {subcategory}")
+        return selected_dishes
+        
     except Exception as e:
-        logger.error(f"Error getting recommendations: {str(e)}")
-        return Response({'error': 'Failed to retrieve recommendations'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Error fetching dishes from subcategory {subcategory}: {str(e)}")
+        return []
+
+
+def _get_random_dishes(count, exclude_ids=None):
+    """
+    Get random dishes from any category to pad recommendations
+    """
+    import random
+    
+    if exclude_ids is None:
+        exclude_ids = set()
+    
+    try:
+        logger.info(f"Fetching {count} random dishes for padding")
+        
+        # Get all dishes
+        all_dishes = firebase_crud.get_all_docs('plats')
+        
+        if not all_dishes:
+            return []
+        
+        # Extract dish IDs, excluding already selected ones
+        available_dish_ids = []
+        for dish in all_dishes:
+            dish_id = dish.get('id')
+            if dish_id and str(dish_id) not in exclude_ids:
+                available_dish_ids.append(str(dish_id))
+        
+        if not available_dish_ids:
+            return []
+        
+        # Randomly select dishes
+        selected_count = min(count, len(available_dish_ids))
+        selected_dishes = random.sample(available_dish_ids, selected_count)
+        
+        logger.info(f"Selected {len(selected_dishes)} random padding dishes")
+        return selected_dishes
+        
+    except Exception as e:
+        logger.error(f"Error fetching random dishes: {str(e)}")
+        return []
+
+
+def _get_fallback_recommendations(reason):
+    """
+    Provide fallback recommendations when no preferences are available
+    """
+    try:
+        logger.info(f"Using fallback recommendations due to: {reason}")
+        
+        # Get 8 random dishes from popular categories
+        fallback_subcategories = ['scat_viande', 'scat_salade', 'scat_poisson', 'scat_couscous']
+        fallback_dishes = []
+        
+        for subcat in fallback_subcategories:
+            dishes = _get_dishes_from_subcategory(subcat, 2)
+            fallback_dishes.extend(dishes)
+        
+        # Remove duplicates and ensure we have 8
+        fallback_dishes = list(set(fallback_dishes))[:8]
+        
+        # If still not enough, pad with random dishes
+        if len(fallback_dishes) < 8:
+            additional_dishes = _get_random_dishes(8 - len(fallback_dishes), exclude_ids=set(fallback_dishes))
+            fallback_dishes.extend(additional_dishes)
+        
+        fallback_dishes = fallback_dishes[:8]
+        
+        return Response({
+            'dish_ids': fallback_dishes,
+            'source': f'fallback_{reason}',
+            'count': len(fallback_dishes),
+            'message': 'Showing popular dishes as recommendations',
+            'based_on_preferences': []
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fallback recommendations: {str(e)}")
+        return Response({
+            'dish_ids': [],
+            'source': f'fallback_{reason}_error',
+            'count': 0,
+            'message': 'Unable to load recommendations at this time'
+        })
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -1085,35 +1206,67 @@ def get_similar_dishes(request, plat_id):
 # ==================
 
 @api_view(['POST'])
-@permission_classes([IsTableClient])  
+@permission_classes([AllowAny])  
 def create_order(request):
-    """Create a new order"""
+    """Create a new order with proper client ID handling"""
 
     if request.method != 'POST':
-            return Response({"detail": "Only POST method is allowed."}, status=405)
+        return Response({"detail": "Only POST method is allowed."}, status=405)
+    
     try:
-        client_id = request.user.uid
         
-        # Validate required fields
+        print("=== CREATE ORDER API ===")
+        print(f"Received data: {request.data}")
+        
+        # STEP 1: Extract client_id from multiple sources with priority
+        client_id = None
+        
+        # Priority 1: Direct client_id from request data (most reliable)
+        if 'client_id' in request.data and request.data['client_id']:
+            client_id = request.data['client_id']
+            print(f"✓ Got client_id from request data: {client_id}")
+        
+        # Priority 2: Extract from Authorization header if available
+        elif request.META.get('HTTP_AUTHORIZATION'):
+            auth_header = request.META.get('HTTP_AUTHORIZATION')
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                try:
+                    decoded_token = auth.verify_id_token(token)
+                    client_id = decoded_token['uid']
+                    print(f"✓ Got client_id from token: {client_id}")
+                except Exception as e:
+                    print(f"⚠ Token verification failed: {e}")
+        
+        # Priority 3: Extract from Firebase order if provided
+        elif 'firebase_order_id' in request.data:
+            firebase_order_id = request.data['firebase_order_id']
+            firebase_order = firebase_crud.get_doc('commandes', firebase_order_id)
+            if firebase_order:
+                client_id = firebase_order.get('user_id')
+                print(f"✓ Got client_id from Firebase order: {client_id}")
+        
+        print(f"Final client_id: {client_id}")
+        
+        # STEP 2: Validate required fields
         if 'items' not in request.data or not isinstance(request.data['items'], list):
             return Response({'error': 'Order items are required and must be a list'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Table ID is now required
         if 'table_id' not in request.data:
             return Response({'error': 'Table ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         table_id = request.data['table_id']
+        items = request.data['items']
         
-        # Check if table exists
+        if not items:
+            return Response({'error': 'Order must contain at least one item'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # STEP 3: Validate table exists
         table = firebase_crud.get_doc('tables', table_id)
         if not table:
             return Response({'error': 'Table not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        items = request.data['items']
-        if not items:
-            return Response({'error': 'Order must contain at least one item'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Calculate total amount and validate items
+        # STEP 4: Calculate total and validate items
         total = 0
         valid_items = []
         
@@ -1139,73 +1292,113 @@ def create_order(request):
                 'quantity': quantity
             })
         
-        # Get client's loyalty points
-        client = firebase_crud.get_doc('clients', client_id)
-        loyalty_points = client.get('points_fidelite', 0) if client else 0
+        print(f"Calculated total: {total}")
         
-        # Check if client has enough loyalty points for discount
+        # STEP 5: Handle loyalty points (only if we have a valid client_id)
         discount_applied = False
-        if loyalty_points >= 10:
-            # Apply 50% discount
-            original_total = total
-            total = total * 0.5
-            discount_applied = True
-            # Reset loyalty points
-            firebase_crud.update_doc('clients', client_id, {'points_fidelite': 0})
-        else:
-            # Add 2 loyalty points for this order
-            new_loyalty_points = loyalty_points + 2
-            firebase_crud.update_doc('clients', client_id, {'points_fidelite': new_loyalty_points})
+        loyalty_points = 0
+        original_total = total
         
-        # Create order document with table_id
+        if client_id and client_id != 'null' and not client_id.startswith('guest_'):
+            print(f"Processing loyalty points for client: {client_id}")
+            
+            # Get client's loyalty points
+            client = firebase_crud.get_doc('clients', client_id)
+            if client:
+                loyalty_points = client.get('pointsFidelite', 0)  # Note: using 'pointsFidelite' as in your Firestore
+                print(f"Client loyalty points: {loyalty_points}")
+                
+                # Check if client has enough loyalty points for discount
+                if loyalty_points >= 10:
+                    # Apply 50% discount
+                    total = total * 0.5
+                    discount_applied = True
+                    print(f"✓ Applied 50% discount. New total: {total}")
+                    
+                    # Reset loyalty points
+                    firebase_crud.update_doc('clients', client_id, {'pointsFidelite': 0})
+                else:
+                    # Add 2 loyalty points for this order
+                    new_loyalty_points = loyalty_points + 2
+                    firebase_crud.update_doc('clients', client_id, {'pointsFidelite': new_loyalty_points})
+                    print(f"✓ Added 2 loyalty points. New total: {new_loyalty_points}")
+            else:
+                print(f"⚠ Client document not found for ID: {client_id}")
+        else:
+            print("⚠ No client_id or guest user - skipping loyalty points")
+        
+        # STEP 6: Create order document
         order_data = {
             'montant': total,
             'dateCreation': firestore.SERVER_TIMESTAMP,
             'etat': 'en_attente',
             'confirmation': False,
-            'idC': client_id,
-            'idTable': table_id,  # Added table ID to the order
-            'discount_applied': discount_applied  # Track if discount was applied
+            'idC': client_id,  # This is the key field that was null before
+            'idTable': table_id,
+            'discount_applied': discount_applied
         }
         
-        order_id = firebase_crud.create_doc('commandes', order_data)
+        # Add additional fields if provided
+        if 'firebase_order_id' in request.data:
+            order_data['firebase_order_id'] = request.data['firebase_order_id']
         
-        # Create order items
+        if 'client_email' in request.data:
+            order_data['client_email'] = request.data['client_email']
+            
+        if 'is_guest' in request.data:
+            order_data['is_guest'] = request.data['is_guest']
+        
+        print(f"Creating order with data: {order_data}")
+        
+        order_id = firebase_crud.create_doc('commandes', order_data)
+        print(f"✓ Order created with ID: {order_id}")
+        
+        # STEP 7: Create order items
         for item in valid_items:
             order_item_data = {
                 'idCmd': order_id,
                 'idP': item['plat_id'],
                 'quantité': item['quantity']
             }
-            firebase_crud.create_doc('commande_plat', order_item_data)
+            firebase_crud.create_doc('commandes_plat', order_item_data)  # Note the correct spelling
         
-        # Prepare response
+        print(f"✓ Created {len(valid_items)} order items")
+        
+        # STEP 8: Prepare response
         response_data = {
             'order_id': order_id,
             'total': total,
-            'message': 'Order created successfully'
+            'message': 'Order created successfully',
+            'client_id': client_id  # Include client_id in response for debugging
         }
         
-        # Add loyalty information to response
-        if discount_applied:
-            response_data.update({
-                'discount_applied': True,
-                'original_total': original_total,
-                'savings': original_total - total,
-                'loyalty_points_remaining': 0
-            })
-        else:
-            response_data.update({
-                'loyalty_points_earned': 2,
-                'loyalty_points_total': new_loyalty_points,
-                'points_needed_for_discount': 10 - new_loyalty_points
-            })
-            
+        # Add loyalty information to response (only if we have client info)
+        if client_id and client_id != 'null' and not client_id.startswith('guest_'):
+            if discount_applied:
+                response_data.update({
+                    'discount_applied': True,
+                    'original_total': original_total,
+                    'savings': original_total - total,
+                    'loyalty_points_remaining': 0
+                })
+            else:
+                client = firebase_crud.get_doc('clients', client_id)
+                if client:
+                    current_points = client.get('pointsFidelite', 0)
+                    response_data.update({
+                        'loyalty_points_earned': 2,
+                        'loyalty_points_total': current_points,
+                        'points_needed_for_discount': max(0, 10 - current_points)
+                    })
+        
+        # THIS WAS MISSING! Return the response
         return Response(response_data, status=status.HTTP_201_CREATED)
+        
     except Exception as e:
-        logger.error(f"Error creating order: {str(e)}")
-        return Response({'error': 'Failed to create order'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+        print(f"❌ Error creating order: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({'error': f'Failed to create order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_fidelity_points(request):
@@ -1238,3 +1431,198 @@ def get_fidelity_points(request):
             'error': 'Failed to retrieve fidelity points',
             'error_message': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+# Ajouter cette fonction dans views.py
+
+# NOUVELLES ROUTES À AJOUTER DANS urls.py :
+# path('orders/<str:order_id>/cancel/', views.cancel_order, name='cancel_order'),
+# path('cancellation-requests/', views.get_cancellation_requests, name='get_cancellation_requests'),
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def cancel_order(request, order_id):
+    """
+    Cancel an order based on its current status
+    - If status is 'en_attente': automatically cancel and notify kitchen
+    - If status is 'pret' or 'en_preparation': create cancellation request and notify both kitchen and manager
+    """
+    try:
+        # Get client ID
+        if hasattr(request.user, 'uid'):
+            client_id = request.user.uid
+        elif hasattr(request.user, 'firebase_uid'):
+            client_id = request.user.firebase_uid
+        else:
+            client_id = str(request.user.pk)
+        
+        logger.info(f"Cancel order request from client: {client_id} for order: {order_id}")
+        
+        # Get the order
+        order = firebase_crud.get_doc('commandes', order_id)
+        if not order:
+            return Response({'error': 'Commande non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify the order belongs to the client
+        if order.get('idC') != client_id:
+            return Response({'error': 'Accès non autorisé à cette commande'}, status=status.HTTP_403_FORBIDDEN)
+        
+        current_status = order.get('etat', '')
+        manager_id = "Fxjzqt9DWCnIiGJDBc4q"
+        
+        # SCENARIO 1: Order is 'en_attente' - Automatic cancellation
+        if current_status == 'en_attente':
+            logger.info(f"Order {order_id} is 'en_attente' - proceeding with automatic cancellation")
+            
+            # Update order status to 'annulee'
+            firebase_crud.update_doc('commandes', order_id, {
+                'etat': 'annulee',
+                'cancelled_at': firestore.SERVER_TIMESTAMP,
+                'cancelled_by': client_id,
+                'cancellation_type': 'automatic'
+            })
+            
+            # Send notification to kitchen (chef)
+            kitchen_notification = {
+                'recipient_id': 'kitchen',
+                'recipient_type': 'chef',
+                'title': 'Commande annulée',
+                'message': f'La commande #{order_id} a été annulée par le client',
+                'type': 'order_cancellation',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'read': False,
+                'priority': 'normal',
+                'order_id': order_id,
+                'client_id': client_id
+            }
+            firebase_crud.create_doc('notifications', kitchen_notification)
+            
+            logger.info(f"Order {order_id} cancelled automatically and kitchen notified")
+            
+            return Response({
+                'message': 'Commande annulée avec succès',
+                'order_id': order_id,
+                'status': 'annulee',
+                'cancellation_type': 'automatic'
+            })
+        
+        # SCENARIO 2: Order is 'pret' or 'en_preparation' - Create cancellation request
+        elif current_status in ['pret', 'en_preparation']:
+            logger.info(f"Order {order_id} is '{current_status}' - creating cancellation request")
+            
+            # Get client info for the request
+            client = firebase_crud.get_doc('clients', client_id)
+            client_name = client.get('username', 'Client inconnu') if client else 'Client inconnu'
+            
+            # Create cancellation request
+            cancellation_request = {
+                'idClient': client_id,
+                'idCommande': order_id,
+                'idServeur': manager_id,
+                'motif': request.data.get('motif', 'Demande d\'annulation par client'),
+                'statut': 'en_attente',
+                'createdAt': firestore.SERVER_TIMESTAMP
+            }
+            
+            cancellation_id = firebase_crud.create_doc('DemandeAnnulation', cancellation_request)
+            
+            # Send notification to kitchen (chef)
+            kitchen_notification = {
+                'recipient_id': 'kitchen',
+                'recipient_type': 'chef',
+                'title': 'Demande d\'annulation',
+                'message': f'Demande d\'annulation pour la commande #{order_id} (statut: {current_status})',
+                'type': 'cancellation_request',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'read': False,
+                'priority': 'normal',
+                'order_id': order_id,
+                'client_id': client_id,
+                'cancellation_request_id': cancellation_id
+            }
+            firebase_crud.create_doc('notifications', kitchen_notification)
+            
+            # Send notification to manager (only with recipient_type)
+            manager_notification = {
+                'recipient_type': 'manager',
+                'title': 'Demande d\'annulation en attente',
+                'message': f'Le client {client_name} demande l\'annulation de la commande #{order_id}',
+                'type': 'cancellation_request',
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'read': False,
+                'priority': 'high',
+                'order_id': order_id,
+                'client_id': client_id,
+                'cancellation_request_id': cancellation_id
+            }
+            firebase_crud.create_doc('notifications', manager_notification)
+            
+            logger.info(f"Cancellation request created for order {order_id}, manager and kitchen notified")
+            
+            return Response({
+                'message': 'Demande d\'annulation envoyée au manager',
+                'order_id': order_id,
+                'cancellation_request_id': cancellation_id,
+                'status': 'cancellation_requested',
+                'current_order_status': current_status
+            })
+        
+        # SCENARIO 3: Order status doesn't allow cancellation
+        else:
+            return Response({
+                'error': f'Impossible d\'annuler une commande avec le statut: {current_status}',
+                'current_status': current_status,
+                'allowed_statuses': ['en_attente', 'pret', 'en_preparation']
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    except Exception as e:
+        logger.error(f"Error cancelling order {order_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            'error': f'Erreur lors de l\'annulation: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_cancellation_requests(request):
+    """Get cancellation requests for the current client"""
+    try:
+        if hasattr(request.user, 'uid'):
+            client_id = request.user.uid
+        elif hasattr(request.user, 'firebase_uid'):
+            client_id = request.user.firebase_uid
+        else:
+            client_id = str(request.user.pk)
+        
+        # Query cancellation requests for this client
+        requests_data = firebase_crud.query_collection(
+            'DemandeAnnulation',
+            'idClient',
+            '==',
+            client_id,
+            order_by='createdAt',
+            desc=True
+        )
+        
+        cancellation_requests = []
+        for req in requests_data:
+            # Get order details
+            order = firebase_crud.get_doc('commandes', req.get('idCommande', ''))
+            
+            cancellation_requests.append({
+                'id': req.get('id'),
+                'order_id': req.get('idCommande'),
+                'motif': req.get('motif', ''),
+                'statut': req.get('statut', ''),
+                'created_at': req.get('createdAt', ''),
+                'order_amount': order.get('montant', 0) if order else 0,
+                'order_status': order.get('etat', '') if order else ''
+            })
+        
+        return Response(cancellation_requests)
+    
+    except Exception as e:
+        logger.error(f"Error getting cancellation requests: {str(e)}")
+        return Response({'error': 'Erreur lors de la récupération des demandes'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)

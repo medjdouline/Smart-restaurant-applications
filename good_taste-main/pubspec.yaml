@@ -93,6 +93,12 @@ flutter:
     - assets/images/dishes/accompagnement/
     - assets/images/dishes/boissons/
     - assets/images/dishes/desserts/
+    - assets/images/Accompagnements/
+    - assets/images/boissons/
+    - assets/images/desserts/
+    - assets/images/Entrées/
+    - assets/images/plats/
+    
     
     
     # Fichiers de données

@@ -66,6 +66,100 @@ class UserService with ChangeNotifier {
   notifyListeners();
 }
 
+Future<bool> refreshToken() async {
+  if (_refreshToken == null) {
+    debugPrint('Pas de refresh token disponible');
+    return false;
+  }
+
+  try {
+    debugPrint('Rafraîchissement du token Django...');
+    
+    final response = await http.post(
+      Uri.parse('$_baseUrl/auth/token/refresh/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'refresh_token': _refreshToken,
+      }),
+    );
+
+    debugPrint('Réponse refresh token: ${response.statusCode}');
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      _idToken = data['id_token'];
+      
+      // Optionnel: mettre à jour le refresh token si fourni
+      if (data['refresh_token'] != null) {
+        _refreshToken = data['refresh_token'];
+      }
+      
+      debugPrint('Token rafraîchi avec succès');
+      notifyListeners();
+      return true;
+    } else {
+      debugPrint('Erreur lors du rafraîchissement: ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('Erreur de rafraîchissement du token: $e');
+    return false;
+  }
+}
+Future<bool> isTokenValid() async {
+  if (_idToken == null) return false;
+
+  try {
+    // Test rapide avec un endpoint simple
+    final response = await http.get(
+      Uri.parse('$_baseUrl/table/profile/'),
+      headers: {
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    return response.statusCode == 200;
+  } catch (e) {
+    debugPrint('Erreur vérification token: $e');
+    return false;
+  }
+}
+Future<List<String>> getRecommendations() async {
+  if (_isGuest || _idToken == null) {
+    debugPrint('Cannot get recommendations - user is guest or not logged in');
+    return [];
+  }
+
+  try {
+    debugPrint('Fetching recommendations...');
+    final response = await http.get(
+      Uri.parse('$_baseUrl/table/recommendations/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_idToken',
+      },
+    );
+
+    debugPrint('Recommendations response: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final List<dynamic> dishIds = data['dish_ids'] ?? [];
+      debugPrint('Received ${dishIds.length} recommendations');
+      return List<String>.from(dishIds);
+    } else {
+      debugPrint('Failed to fetch recommendations: ${response.body}');
+      return [];
+    }
+  } catch (e) {
+    debugPrint('Error fetching recommendations: $e');
+    return [];
+  }
+}
 Future<void> loadFidelityPoints() async {
     if (_isGuest || _idToken == null) {
       _fidelityPoints = 0;
@@ -747,23 +841,40 @@ Future<bool> loginAsGuest() async {
 // Add this method to your UserService class
 
 Future<bool> createAssistanceRequest(String tableId) async {
-  if (!isLoggedIn || isGuest) {
-    debugPrint('Cannot create assistance request - user not logged in or is guest');
+  if (!isLoggedIn) {
+    debugPrint('Cannot create assistance request - user not logged in');
     return false;
   }
 
   try {
     debugPrint('Creating assistance request for table: $tableId');
+    debugPrint('User type: ${isGuest ? 'Guest' : 'Registered'}');
+    
+    // Prepare headers - only add Authorization for authenticated users
+    Map<String, String> headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Only add authorization for non-guest users
+    if (!isGuest && _idToken != null) {
+      headers['Authorization'] = 'Bearer $_idToken';
+    }
+    
+    // Prepare request body
+    Map<String, dynamic> requestBody = {
+      'table_id': tableId,
+      'user_type': isGuest ? 'guest' : 'registered',
+    };
+    
+    // Add guest name if user is a guest
+    if (isGuest) {
+      requestBody['guest_name'] = _nomUtilisateur ?? 'Guest User';
+    }
     
     final response = await http.post(
       Uri.parse('http://127.0.0.1:8000/api/table/assistance/create/'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_idToken',
-      },
-      body: jsonEncode({
-        'table_id': tableId,
-      }),
+      headers: headers,
+      body: jsonEncode(requestBody),
     );
 
     debugPrint('Assistance request response: ${response.statusCode}');
@@ -772,6 +883,7 @@ Future<bool> createAssistanceRequest(String tableId) async {
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
       debugPrint('Assistance request created with ID: ${data['id']}');
+      debugPrint('Request type: ${isGuest ? 'Guest' : 'Registered'} user');
       return true;
     } else {
       debugPrint('Failed to create assistance request: ${response.statusCode} - ${response.body}');
@@ -782,6 +894,7 @@ Future<bool> createAssistanceRequest(String tableId) async {
     return false;
   }
 }
+
 // Update completeRegistrationStep5:
 Future<bool> completeRegistrationStep5(List<String> preferences) async {
   try {

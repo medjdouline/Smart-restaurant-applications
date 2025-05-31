@@ -5,21 +5,24 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:good_taste/data/models/dish_model.dart';
 import 'package:good_taste/data/repositories/dish_repository.dart';
-
+import 'package:good_taste/data/services/dish_api_service.dart';
+import 'package:good_taste/di/di.dart';
 part 'home_event.dart';
 part 'home_state.dart';
 
+
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final DishRepository dishRepository;
+  final DishApiService _dishApiService;
 
   HomeBloc({
     required this.dishRepository,
-  }) : super(HomeInitial()) {
+  }) : _dishApiService = DependencyInjection.getDishApiService(),
+       super(HomeInitial()) {
     on<LoadRecommendations>(_onLoadRecommendations);
-    
   }
 
-  Future<void> _onLoadRecommendations(
+   Future<void> _onLoadRecommendations(
     LoadRecommendations event,
     Emitter<HomeState> emit,
   ) async {
@@ -27,28 +30,26 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     emit(HomeLoading());
     
     try {
-     
-      await Future.delayed(const Duration(milliseconds: 100));
+      // First try to get recommendations from API
+      final dishes = await _dishApiService.getRecommendedDishes();
       
-      final dishes = dishRepository.getRecommendedDishes();
-      debugPrint("HomeBloc: Loaded ${dishes.length} dishes");
+      debugPrint("HomeBloc: Loaded ${dishes.length} dishes from API");
       
       if (dishes.isEmpty) {
-        debugPrint("HomeBloc: No dishes found!");
+        debugPrint("HomeBloc: No dishes from API, falling back to local");
+        // Fallback to local recommendations if API returns empty
+        final localDishes = dishRepository.getRecommendedDishes();
+        emit(HomeLoaded(recommendedDishes: localDishes));
       } else {
-       
-        debugPrint("HomeBloc: First dish: ${dishes.first.name}");
+        emit(HomeLoaded(recommendedDishes: dishes));
       }
-      
-      emit(HomeLoaded(recommendedDishes: dishes));
-      debugPrint("HomeBloc: Emitted HomeLoaded state");
     } catch (e) {
-      debugPrint("HomeBloc: Error loading dishes: $e");
-      emit(HomeError(message: e.toString()));
+      debugPrint("HomeBloc: Error loading dishes from API: $e");
+      // Fallback to local recommendations on error
+      final localDishes = dishRepository.getRecommendedDishes();
+      emit(HomeLoaded(recommendedDishes: localDishes));
     }
   }
-
-  
 
   @override
   Future<void> close() {

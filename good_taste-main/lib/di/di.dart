@@ -11,6 +11,7 @@ import 'package:good_taste/data/api/profile_api_service.dart';
 import 'package:good_taste/data/repositories/profile_repository.dart';
 import 'package:good_taste/data/api/notification_api_service.dart';
 import 'package:good_taste/data/repositories/notification_repository.dart';
+import 'package:good_taste/data/services/dish_api_service.dart';
 
 class DependencyInjection {
   static SharedPreferences? _prefs;
@@ -19,6 +20,7 @@ class DependencyInjection {
   factory DependencyInjection() => _instance;
 
   static ApiClient? _apiClient;
+  static DishApiService? _dishApiService;
   static AuthApiService? _authApiService;
   static AuthRepository? _authRepository;
   static RegimeRepository? _regimeRepository;
@@ -58,6 +60,12 @@ class DependencyInjection {
     );
     return _profileApiService!;
   }
+  static DishApiService getDishApiService() {
+  _dishApiService ??= DishApiService(
+    apiClient: getApiClient(),
+  );
+  return _dishApiService!;
+}
  
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();

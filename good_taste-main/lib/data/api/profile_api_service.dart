@@ -50,4 +50,12 @@ class ProfileApiService {
       requiresAuth: true,
     );
   }
+
+  // NEW: Get user's fidelity points from API
+  Future<ApiResponse> getFidelityPoints() async {
+    return await _apiClient.get(
+      'client-mobile/fidelity/points/',
+      requiresAuth: true,
+    );
+  }
 }

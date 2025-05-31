@@ -35,7 +35,7 @@ class PreferenceScreen extends StatelessWidget {
           final List<String> preferences = [
             'Soupes et Potages',
             'Salades et Crudités',
-            'Poissons et Fruit de mers',
+            'Poissons et Fruits de mer',
             'Cuisine traditionnelle',
             'Viandes',
             'Sandwichs et burgers',

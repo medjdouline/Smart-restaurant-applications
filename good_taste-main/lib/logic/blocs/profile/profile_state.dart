@@ -3,6 +3,7 @@ part of 'profile_bloc.dart';
 // NEW: Enum for allergies loading status
 enum AllergiesLoadingStatus { initial, loading, success, failure }
 enum RestrictionsLoadingStatus { initial, loading, success, failure } // NEW
+enum FidelityPointsLoadingStatus { initial, loading, success, failure }
 
 class ProfileState extends Equatable {
   const ProfileState({
@@ -14,6 +15,9 @@ class ProfileState extends Equatable {
     this.profileImage,
     this.tempProfileImage, 
     this.status = FormzSubmissionStatus.initial,
+    this.fidelityPoints = 0,
+this.fidelityPointsStatus = FidelityPointsLoadingStatus.initial,
+this.fidelityPointsErrorMessage,
     this.isValid = false,
     this.errorMessage,
     this.allergies = const [],
@@ -31,6 +35,9 @@ class ProfileState extends Equatable {
   final PhoneNumber phoneNumber;
   final String? gender;
   final DateTime? dateOfBirth;
+  final int fidelityPoints;
+final FidelityPointsLoadingStatus fidelityPointsStatus;
+final String? fidelityPointsErrorMessage;
   final String? profileImage; 
   final String? tempProfileImage;
   final FormzSubmissionStatus status;
@@ -55,6 +62,9 @@ class ProfileState extends Equatable {
     String? tempProfileImage,
     FormzSubmissionStatus? status,
     bool? isValid,
+    int? fidelityPoints,
+FidelityPointsLoadingStatus? fidelityPointsStatus,
+String? fidelityPointsErrorMessage,
     String? errorMessage,
     List<String>? allergies,
     List<String>? selectedAllergies, // NEW
@@ -76,6 +86,9 @@ class ProfileState extends Equatable {
       status: status ?? this.status,
       isValid: isValid ?? this.isValid,
       errorMessage: errorMessage,
+      fidelityPoints: fidelityPoints ?? this.fidelityPoints,
+fidelityPointsStatus: fidelityPointsStatus ?? this.fidelityPointsStatus,
+fidelityPointsErrorMessage: fidelityPointsErrorMessage,
       allergies: allergies ?? this.allergies,
       selectedAllergies: selectedAllergies ?? this.selectedAllergies,
       allergiesStatus: allergiesStatus ?? this.allergiesStatus,
@@ -105,6 +118,9 @@ class ProfileState extends Equatable {
     phoneNumber, 
     gender, 
     dateOfBirth, 
+    fidelityPoints,
+fidelityPointsStatus,
+fidelityPointsErrorMessage,
     profileImage,
     tempProfileImage,
     status, 

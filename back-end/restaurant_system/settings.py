@@ -11,6 +11,10 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DJANGO_DEBUG') == 'True'
 ALLOWED_HOSTS = ['*']
 
+DEFAULT_CHARSET = 'utf-8'
+
+# File charset (if reading files)
+FILE_CHARSET = 'utf-8'
 # Applications
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -49,6 +53,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'UNICODE_JSON': True, 
     
 }
 

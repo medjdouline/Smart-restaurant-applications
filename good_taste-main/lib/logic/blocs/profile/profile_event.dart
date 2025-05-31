@@ -17,7 +17,7 @@ class ProfilePhoneNumberChanged extends ProfileEvent {
   @override
   List<Object> get props => [phoneNumber];
 }
-
+class ProfileFidelityPointsLoaded extends ProfileEvent {}
 class ProfileImageChanged extends ProfileEvent {
   const ProfileImageChanged(this.profileImage);
 

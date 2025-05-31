@@ -67,7 +67,277 @@ def update_client_profile(request):
 # ==================
 # Orders Endpoints
 # ==================
+@api_view(['GET'])
+@permission_classes([IsClient])
+def get_recommendations(request):
+    """
+    Get recommendations for the authenticated client
+    Based purely on user preferences mapped to subcategories
+    """
+    try:
+        client_id = request.user.uid
+        logger.info(f"Getting recommendations for client: {client_id}")
+        
+        # Get client data
+        current_client = firebase_crud.get_doc('clients', client_id)
+        if not current_client:
+            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        current_preferences = current_client.get('preferences', [])
+        if not current_preferences:
+            logger.info(f"Client {client_id} has no preferences set - using fallback")
+            return _get_fallback_recommendations('no_preferences')
+        
+        logger.info(f"Client {client_id} preferences: {current_preferences}")
+        
+        # Generate preference-based recommendations
+        recommendations = _generate_preference_based_recommendations(current_preferences, client_id)
+        
+        return Response({
+            'dish_ids': recommendations['dish_ids'],
+            'source': 'preference_based',
+            'count': len(recommendations['dish_ids']),
+            'based_on_preferences': current_preferences,
+            'subcategories_used': recommendations['subcategories_used']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting recommendations for client {client_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            'error': f'Failed to get recommendations: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+def _generate_preference_based_recommendations(preferences, client_id):
+    """
+    Generate recommendations based on user preferences mapped to subcategories
+    Returns exactly 8 recommendations distributed based on number of preferences
+    """
+    import random
+    from datetime import datetime
+    
+    # Preference to subcategory mapping (using actual idSousCat values)
+    PREFERENCE_MAPPING = {
+        'Soupes et Potages': ['scat_soupe'],
+        'Salades et Crudités': ['scat_salade'],
+        'Poissons et Fruits de mer': ['scat_poisson'],
+        'Cuisine traditionnelle': ['scat_couscous', 'scat_tagine'],
+        'Viandes': ['scat_viande'],
+        'Sandwichs et burgers': ['scat_feuillete'],
+        'Végétariens': ['scat_vegetarien'],
+        'Crémes et Mousses': ['scat_gateau'],
+        'Pâtisseries': ['scat_patisserie'],
+        'Fruits et Sorbets': ['scat_froid']
+    }
+    
+    # Determine distribution based on number of preferences
+    num_preferences = len(preferences)
+    if num_preferences == 1:
+        distribution = [8]
+    elif num_preferences == 2:
+        distribution = [4, 4]
+    else:  # 3 or more preferences
+        distribution = [3, 3, 2]
+        preferences = preferences[:3]  # Only use first 3 preferences
+    
+    recommended_dish_ids = []
+    subcategories_used = []
+    
+    # Use client_id and current time to create seed for randomization
+    # This ensures different results for same client on different calls
+    random_seed = hash(f"{client_id}_{datetime.now().strftime('%Y%m%d%H')}") % 10000
+    random.seed(random_seed)
+    
+    for i, preference in enumerate(preferences):
+        if i >= len(distribution):
+            break
+            
+        needed_count = distribution[i]
+        subcategories = PREFERENCE_MAPPING.get(preference, [])
+        
+        if not subcategories:
+            logger.warning(f"No subcategory mapping found for preference: {preference}")
+            continue
+        
+        # Handle special case for 'Cuisine traditionnelle' with multiple subcategories
+        if len(subcategories) > 1 and preference == 'Cuisine traditionnelle':
+            # Split between Couscous and Tagine (2 each for most cases)
+            couscous_count = needed_count // 2
+            tagine_count = needed_count - couscous_count
+            
+            # Get dishes from Couscous
+            couscous_dishes = _get_dishes_from_subcategory('scat_couscous', couscous_count)
+            recommended_dish_ids.extend(couscous_dishes)
+            if couscous_dishes:
+                subcategories_used.append('scat_couscous')
+            
+            # Get dishes from Tagine
+            tagine_dishes = _get_dishes_from_subcategory('scat_tagine', tagine_count)
+            recommended_dish_ids.extend(tagine_dishes)
+            if tagine_dishes:
+                subcategories_used.append('scat_tagine')
+        else:
+            # Single subcategory
+            subcat = subcategories[0]
+            dishes = _get_dishes_from_subcategory(subcat, needed_count)
+            recommended_dish_ids.extend(dishes)
+            if dishes:
+                subcategories_used.append(subcat)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_dish_ids = []
+    for dish_id in recommended_dish_ids:
+        if dish_id not in seen:
+            seen.add(dish_id)
+            unique_dish_ids.append(dish_id)
+    
+    # If we don't have enough recommendations (less than 8), pad with random dishes
+    if len(unique_dish_ids) < 8:
+        logger.info(f"Only found {len(unique_dish_ids)} recommendations, padding with random dishes")
+        remaining_needed = 8 - len(unique_dish_ids)
+        additional_dishes = _get_random_dishes(remaining_needed, exclude_ids=set(unique_dish_ids))
+        unique_dish_ids.extend(additional_dishes)
+    
+    # Ensure we have exactly 8 recommendations
+    unique_dish_ids = unique_dish_ids[:8]
+    
+    logger.info(f"Generated {len(unique_dish_ids)} preference-based recommendations")
+    
+    return {
+        'dish_ids': unique_dish_ids,
+        'subcategories_used': subcategories_used
+    }
+
+
+def _get_dishes_from_subcategory(subcategory, count):
+    """
+    Get random dishes from a specific subcategory
+    """
+    import random
+    
+    try:
+        logger.info(f"Fetching {count} dishes from subcategory: {subcategory}")
+        
+        # Query dishes from 'plats' collection by 'idSousCat'
+        dishes = firebase_crud.query_collection(
+            'plats',
+            'idSousCat',
+            '==',
+            subcategory
+        )
+        
+        if not dishes:
+            logger.warning(f"No dishes found for subcategory: {subcategory}")
+            return []
+        
+        # Extract dish IDs
+        dish_ids = []
+        for dish in dishes:
+            dish_id = dish.get('id')
+            if dish_id:
+                dish_ids.append(str(dish_id))
+        
+        if not dish_ids:
+            logger.warning(f"No valid dish IDs found for subcategory: {subcategory}")
+            return []
+        
+        # Randomly select the requested number of dishes
+        selected_count = min(count, len(dish_ids))
+        selected_dishes = random.sample(dish_ids, selected_count)
+        
+        logger.info(f"Selected {len(selected_dishes)} dishes from {len(dish_ids)} available in {subcategory}")
+        return selected_dishes
+        
+    except Exception as e:
+        logger.error(f"Error fetching dishes from subcategory {subcategory}: {str(e)}")
+        return []
+
+
+def _get_random_dishes(count, exclude_ids=None):
+    """
+    Get random dishes from any category to pad recommendations
+    """
+    import random
+    
+    if exclude_ids is None:
+        exclude_ids = set()
+    
+    try:
+        logger.info(f"Fetching {count} random dishes for padding")
+        
+        # Get all dishes
+        all_dishes = firebase_crud.get_all_docs('plats')
+        
+        if not all_dishes:
+            return []
+        
+        # Extract dish IDs, excluding already selected ones
+        available_dish_ids = []
+        for dish in all_dishes:
+            dish_id = dish.get('id')
+            if dish_id and str(dish_id) not in exclude_ids:
+                available_dish_ids.append(str(dish_id))
+        
+        if not available_dish_ids:
+            return []
+        
+        # Randomly select dishes
+        selected_count = min(count, len(available_dish_ids))
+        selected_dishes = random.sample(available_dish_ids, selected_count)
+        
+        logger.info(f"Selected {len(selected_dishes)} random padding dishes")
+        return selected_dishes
+        
+    except Exception as e:
+        logger.error(f"Error fetching random dishes: {str(e)}")
+        return []
+
+
+def _get_fallback_recommendations(reason):
+    """
+    Provide fallback recommendations when no preferences are available
+    """
+    try:
+        logger.info(f"Using fallback recommendations due to: {reason}")
+        
+        # Get 8 random dishes from popular categories
+        fallback_subcategories = ['scat_viande', 'scat_salade', 'scat_poisson', 'scat_couscous']
+        fallback_dishes = []
+        
+        for subcat in fallback_subcategories:
+            dishes = _get_dishes_from_subcategory(subcat, 2)
+            fallback_dishes.extend(dishes)
+        
+        # Remove duplicates and ensure we have 8
+        fallback_dishes = list(set(fallback_dishes))[:8]
+        
+        # If still not enough, pad with random dishes
+        if len(fallback_dishes) < 8:
+            additional_dishes = _get_random_dishes(8 - len(fallback_dishes), exclude_ids=set(fallback_dishes))
+            fallback_dishes.extend(additional_dishes)
+        
+        fallback_dishes = fallback_dishes[:8]
+        
+        return Response({
+            'dish_ids': fallback_dishes,
+            'source': f'fallback_{reason}',
+            'count': len(fallback_dishes),
+            'message': 'Showing popular dishes as recommendations',
+            'based_on_preferences': []
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fallback recommendations: {str(e)}")
+        return Response({
+            'dish_ids': [],
+            'source': f'fallback_{reason}_error',
+            'count': 0,
+            'message': 'Unable to load recommendations at this time'
+        })
+    
 @api_view(['GET'])
 @permission_classes([IsClient])
 def get_orders_history(request):
@@ -305,33 +575,100 @@ def get_reservations(request):
         logger.info(f"Found reservations: {reservations}")
 
         if not reservations:
-            return Response({'message': 'No reservations found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response([], status=status.HTTP_200_OK)  # Return empty list instead of 404
 
         reservations_list = []
         for res in reservations:
             table_id = res.get('table_id')
-            table = firebase_crud.get_doc('tables', table_id)
-            logger.info(f"Table info for table_id {table_id}: {table}")
+            logger.info(f"Processing reservation with table_id: {table_id}")
+            
+            # Get table info with error handling
+            table = None
+            table_number = "1"  # Default fallback
+            
+            if table_id:
+                try:
+                    table = firebase_crud.get_doc('tables', table_id)
+                    logger.info(f"Table info for table_id {table_id}: {table}")
+                    
+                    if table:
+                        # Extract actual table number - adjust this based on your table document structure
+                        # Option 1: If table_id is like "table3", extract the number
+                        if table_id.startswith('table'):
+                            table_number = table_id.replace('table', '')
+                        # Option 2: If table document has a 'number' field
+                        elif 'number' in table:
+                            table_number = str(table['number'])
+                        # Option 3: If table document has a 'name' field
+                        elif 'name' in table:
+                            table_number = str(table['name'])
+                        else:
+                            # Fallback: use table_id as is
+                            table_number = table_id
+                            
+                except Exception as table_error:
+                    logger.error(f"Error getting table {table_id}: {table_error}")
+                    table_number = table_id or "1"
 
             reservations_list.append({
                 'id': res['id'],
                 'date_time': res.get('date_time', ''),
                 'party_size': res.get('party_size', 0),
-                'status': res.get('status', ''),
+                'status': res.get('status', 'pending'),
                 'table': {
                     'id': table_id,
-                    'number': table.get('nbrPersonne', 0) if table else None
+                    'number': table_number,  # This should be the actual table number, not capacity
+                    'capacity': table.get('nbrPersonne', 0) if table else 0  # Keep capacity separate
                 }
             })
 
+        # Sort by date_time, most recent first
         reservations_list.sort(key=lambda x: x['date_time'], reverse=True)
 
-        return Response(reservations_list)
+        logger.info(f"Returning {len(reservations_list)} reservations")
+        return Response(reservations_list, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.error(f"Error getting reservations: {str(e)}")
-        return Response({'error': f'Failed to retrieve reservations: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        logger.error(f"Full traceback: ", exc_info=True)
+        return Response(
+            {'error': f'Failed to retrieve reservations: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+@api_view(['GET'])
+@permission_classes([IsClient])
+def get_fidelity_points(request):
+    """Get client's fidelity points"""
+    try:
+        client_id = request.user.uid
+        logger.info(f"Retrieving fidelity points for client ID: {client_id}")
+        
+        # Récupérer le document client
+        client = firebase_crud.get_doc('clients', client_id)
+        
+        if not client:
+            logger.warning(f"Client not found: {client_id}")
+            return Response({'error': 'Client not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Retourner uniquement les points pour l'instant
+        # Si 'points_fidelite' n'existe pas, essayez 'fidelity_points', puis 'fidelityPoints', sinon 0
+        points = client.get('points_fidelite', 
+                  client.get('fidelity_points', 
+                  client.get('fidelityPoints', 0)))
+        
+        # Réponse simplifiée avec uniquement les points
+        return Response({
+            'points': points
+        })
+    except Exception as e:
+        logger.error(f"Error in get_fidelity_points: {str(e)}", exc_info=True)
+        # Renvoyer des informations sur l'erreur pour le débogage
+        return Response({
+            'error': 'Failed to retrieve fidelity points',
+            'error_message': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -375,15 +712,6 @@ def create_reservation(request):
     print("=== DONNEES RECUES ===")
     print("Table ID:", request.data.get('table_id'))  # Doit afficher "table1", "table2", etc.
     
-    table_id = request.data.get('table_id')
-    table = firebase_crud.get_doc('tables', table_id)
-    
-    if not table:
-        print(f"ERREUR: Table {table_id} non trouvée dans Firestore")
-        return Response({'error': 'Table not found'}, status=404)
-    else:
-        print(f"Table trouvée: {table}")
-    """Create a new table reservation"""
     try:
         client_id = request.user.uid
         
@@ -405,7 +733,19 @@ def create_reservation(request):
         # Check if table exists
         table = firebase_crud.get_doc('tables', table_id)
         if not table:
+            print(f"ERREUR: Table {table_id} non trouvée dans Firestore")
             return Response({'error': 'Table not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            print(f"Table trouvée: {table}")
+        
+        # NOUVELLE VERIFICATION : Vérifier si la table est déjà réservée
+        table_state = table.get('etatTable', '').lower()
+        if table_state == 'reservee':
+            print(f"ERREUR: Table {table_id} est déjà réservée (état: {table_state})")
+            return Response({
+                'error': 'Table déjà réservée', 
+                'message': 'Cette table est déjà réservée. Veuillez choisir une autre table.'
+            }, status=status.HTTP_409_CONFLICT)
         
         # Check if table capacity is sufficient
         if table.get('nbrPersonne', 0) < party_size:
@@ -429,10 +769,12 @@ def create_reservation(request):
         # Update table status to 'reservee'
         firebase_crud.update_doc('tables', table_id, {'etatTable': 'reservee'})
         
+        print(f"Réservation créée avec succès: {reservation_id}")
         return Response({
             'id': reservation_id,
             'message': 'Reservation created successfully'
         })
+        
     except Exception as e:
         logger.error(f"Error creating reservation: {str(e)}")
         return Response({'error': 'Failed to create reservation'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -466,45 +808,26 @@ def cancel_reservation(request, reservation_id):
 def get_available_tables(request):
     """Get available tables for reservation"""
     try:
-        # Get query parameters
-        date = request.query_params.get('date')
-        time = request.query_params.get('time')
-        party_size = int(request.query_params.get('party_size', 0))
-        
-        if not date or not time or party_size <= 0:
-            return Response({'error': 'Date, time, and party size are required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Format date_time for comparison
-        target_date_time = f"{date}T{time}"
-        
-        # Get all tables
+        # Get all tables from Firebase
         tables = firebase_crud.get_all_docs('tables')
         
-        # Get existing reservations for the requested time
-        all_reservations = firebase_crud.query_collection(
-            'reservations',
-            'date_time',
-            '==',
-            target_date_time
-        )
-        
-        # Filter out tables that are already reserved
-        reserved_table_ids = [res.get('table_id') for res in all_reservations]
-        
+        # Filter tables with status 'libre'
         available_tables = []
         for table in tables:
-            if table['id'] not in reserved_table_ids and table.get('nbrPersonne', 0) >= party_size:
+            if table.get('etatTable') == 'libre':
                 available_tables.append({
                     'id': table['id'],
-                    'number': table.get('number', 0),
+                    'number': table.get('number'),
                     'capacity': table.get('nbrPersonne', 0),
-                    'location': table.get('location', 'main')
+                    'type': table.get('type', 'Standard'),
+                    'status': table.get('etatTable', 'libre')
                 })
         
-        return Response(available_tables)
+        return Response({'tables': available_tables})
     except Exception as e:
         logger.error(f"Error getting available tables: {str(e)}")
-        return Response({'error': 'Failed to retrieve available tables'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': 'Failed to retrieve available tables'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ==================
 # Menu Endpoints
@@ -760,58 +1083,6 @@ def update_restrictions(request):
 # Recommendations Endpoints
 # ==================
 
-@api_view(['GET'])
-@permission_classes([IsClient])
-def get_recommendations(request):
-    try:
-        client_id = request.user.uid
-        # Query for recommandations without sorting in the query
-        recommendations = firebase_crud.query_collection(
-            'recommandations',
-            'idC',
-            '==',
-            client_id
-        )
-        
-        # Sort in memory
-        recommendations = sorted(recommendations, key=lambda x: x.get('date_generation', ''), reverse=True)
-
-        if not recommendations:
-            return Response({'message': 'No recommendations found'}, status=status.HTTP_404_NOT_FOUND)
-
-        recommendation_id = recommendations[0]['id']
-
-        # Get recommended dishes
-        recommended_plats = firebase_crud.query_collection(
-            'recommandation_plat',
-            'idR',
-            '==',
-            recommendation_id
-        )
-
-        # Get details for each recommended dish
-        plats_details = []
-        for rec_plat in recommended_plats:
-            plat_id = rec_plat.get('idP')
-            plat = firebase_crud.get_doc('plats', plat_id)
-
-            if plat:
-                plats_details.append({
-                    'id': plat_id,
-                    'nom': plat.get('nom', ''),
-                    'description': plat.get('description', ''),
-                    'prix': plat.get('prix', 0),
-                    'note': plat.get('note', 0)
-                })
-
-        return Response({
-            'recommendation_id': recommendation_id,
-            'date_generated': recommendations[0].get('date_generation', ''),
-            'plats': plats_details
-        })
-    except Exception as e:
-        logger.error(f"Error getting recommendations: {str(e)}")
-        return Response({'error': 'Failed to retrieve recommendations'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsClient])
@@ -1114,3 +1385,5 @@ def get_similar_dishes(request, plat_id):
         logger.error(f"Error getting similar dishes: {str(e)}")
         return Response({'error': 'Failed to retrieve similar dishes'}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+

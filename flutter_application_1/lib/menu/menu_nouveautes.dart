@@ -24,14 +24,15 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
   void initState() {
     super.initState();
     _loadNouveautes();
-    _loadFavoris(); // Add this to load existing favorites
+    _loadFavoris();
   }
 
   Future<void> _loadFavoris() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final favorisService = Provider.of<FavorisService>(context, listen: false);
-      await favorisService.chargerFavoris(user.uid);
+      // Use the API method instead of Firebase method
+      await favorisService.chargerFavorisAPI();
     }
   }
 
@@ -164,18 +165,27 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
         color: const Color(0xFFB24516),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Consumer<FavorisService>( // Wrap with Consumer to listen to changes
+      child: Consumer<FavorisService>(
         builder: (context, favorisService, child) {
-          return ListView.builder(
+          return Padding(
             padding: const EdgeInsets.all(16),
-            itemCount: _nouveautes.length,
-            itemBuilder: (context, index) {
-              final plat = _nouveautes[index];
-              return GestureDetector(
-                onTap: () => _showPlatDetails(plat, ratingService),
-                child: _buildPlatCard(plat, favorisService),
-              );
-            },
+            child: SizedBox(
+              height: 170,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _nouveautes.length,
+                itemBuilder: (context, index) {
+                  final plat = _nouveautes[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: () => _showPlatDetails(plat, ratingService),
+                      child: _buildPlatCard(plat, favorisService),
+                    ),
+                  );
+                },
+              ),
+            ),
           );
         },
       ),
@@ -186,116 +196,103 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
     final isFavorite = favorisService.estFavori(plat['id']);
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      width: 150,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(12),
             child: plat['image_url'] != null && plat['image_url'].isNotEmpty
                 ? Image.network(
                     plat['image_url'],
-                    height: 150,
+                    height: double.infinity,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
                   )
                 : _buildPlaceholderImage(),
           ),
+          // "NOUVEAU" badge
           Positioned(
-            top: 10,
-            left: 10,
+            top: 5,
+            left: 5,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
                 color: const Color(0xFFFF6B6B),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: const Text(
                 'NOUVEAU',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.center,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
-                ),
+          // Gradient overlay
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.center,
+                colors: [
+                  Colors.black.withOpacity(0.7),
+                  Colors.transparent,
+                ],
               ),
             ),
           ),
+          // Favorite button - FIXED
           Positioned(
-            top: 10,
-            right: 10,
+            top: 5,
+            right: 5,
             child: GestureDetector(
               onTap: () async {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  try {
-                    await favorisService.toggleFavori(plat, user.uid);
-                    // Show feedback to user
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          favorisService.estFavori(plat['id']) 
-                            ? '${plat['nom']} ajouté aux favoris' 
-                            : '${plat['nom']} retiré des favoris'
-                        ),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Erreur: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Vous devez être connecté pour ajouter aux favoris'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: isFavorite ? Colors.red : Colors.grey[600],
-                  size: 20,
-                ),
+  try {
+    if (favorisService.estFavori(plat['id'])) {
+      await favorisService.supprimerFavoriAPI(plat['id']);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${plat['nom']} retiré des favoris'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } else {
+      await favorisService.ajouterFavoriAPI(plat['id']);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${plat['nom']} ajouté aux favoris'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur: $e')),
+    );
+  }
+},
+              child: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: isFavorite ? Colors.red : Colors.white,
+                size: 24,
               ),
             ),
           ),
+          // Text at bottom
           Positioned(
             bottom: 10,
             left: 10,
@@ -310,6 +307,8 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${plat['prix']?.toStringAsFixed(2) ?? '0.00'} DA',
@@ -328,7 +327,7 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
 
   Widget _buildPlaceholderImage() {
     return Container(
-      height: 150,
+      height: double.infinity,
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -345,16 +344,17 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
         children: [
           Icon(
             Icons.restaurant,
-            size: 40,
+            size: 30,
             color: Colors.white.withOpacity(0.8),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Image non disponible',
             style: TextStyle(
               color: Colors.white.withOpacity(0.8),
-              fontSize: 12,
+              fontSize: 10,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -405,16 +405,16 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
                         top: 10,
                         left: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF6B6B),
-                            borderRadius: BorderRadius.circular(15),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
                             'NOUVEAU',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 6,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -426,30 +426,26 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
                         child: Row(
                           children: [
                             GestureDetector(
-                              onTap: () async {
-                                final user = FirebaseAuth.instance.currentUser;
-                                if (user != null) {
-                                  try {
-                                    await favorisService.toggleFavori(plat, user.uid);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          favorisService.estFavori(plat['id']) 
-                                            ? '${plat['nom']} ajouté aux favoris' 
-                                            : '${plat['nom']} retiré des favoris'
-                                        ),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Erreur: $e'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                }
+                              onTap: () {
+  // Use local favorites method instead of API
+  if (favorisService.estFavori(plat['id'])) {
+    favorisService.supprimerFavori(plat['id']);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${plat['nom']} retiré des favoris'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  } else {
+    favorisService.ajouterFavori(plat);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${plat['nom']} ajouté aux favoris'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(8),
@@ -608,7 +604,7 @@ class _MenuNouveautesPageState extends State<MenuNouveautesPage> {
                         nom: plat['nom'],
                         prix: plat['prix']?.toDouble() ?? 0.0,
                         imageUrl: plat['image_url'] ?? '',
-                        pointsFidelite: 0,
+
                       );
                       
                       ScaffoldMessenger.of(context).showSnackBar(

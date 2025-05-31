@@ -132,11 +132,10 @@ class _CartPageState extends State<CartPage> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '${item.prix.toInt()} DA (${item.pointsFidelite} pts)',
-                        style: TextStyle(
+                        '${item.prix.toInt()} DA',
+                        style: const TextStyle(
                           fontSize: 16,
-                          color: Colors.brown[700],
-                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
                         ),
                       ),
                     ],
@@ -165,7 +164,6 @@ class _CartPageState extends State<CartPage> {
                         nom: item.nom,
                         prix: item.prix,
                         imageUrl: item.imageUrl,
-                        pointsFidelite: item.pointsFidelite,
                       ),
                     ),
                   ],
@@ -203,7 +201,7 @@ class _CartPageState extends State<CartPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // AJOUTER CE WIDGET POUR LA SÉLECTION DE TABLE
+          // Table selection dropdown
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -232,66 +230,7 @@ class _CartPageState extends State<CartPage> {
           ),
           const SizedBox(height: 15),
           
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.star, color: Colors.amber, size: 20),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${cartService.totalPointsFidelite} pts',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                if (cartService.reductionActive)
-                  Text(
-                    'Réduction de 50% appliquée!',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Sous-total:', style: theme.textTheme.bodyMedium),
-                Text(
-                  '${cartService.montantAvantReduction.toInt()} DA',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-
-          if (cartService.reductionActive)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Réduction (50%):', style: theme.textTheme.bodyMedium),
-                  Text(
-                    '-${cartService.montantReduction.toInt()} DA',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
+          // Simple total display
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Row(
@@ -318,8 +257,8 @@ class _CartPageState extends State<CartPage> {
           
           ElevatedButton(
             onPressed: _selectedTableId == null 
-                ? null  // Désactiver si aucune table sélectionnée
-                : () => cartService.confirmOrder(context, _selectedTableId!),  // Passer la table
+                ? null  // Disable if no table selected
+                : () => cartService.confirmOrder(context, _selectedTableId!),  // Pass the table
             style: ElevatedButton.styleFrom(
               backgroundColor: _selectedTableId == null 
                   ? Colors.grey 

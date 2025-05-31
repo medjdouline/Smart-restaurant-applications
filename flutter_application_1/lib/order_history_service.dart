@@ -5,6 +5,52 @@ import 'cart_service.dart';
 import '../services/menu_service.dart';
 import 'user_service.dart';
 
+class CancellationRequest {
+  final String id;
+  final String orderId;
+  final String motif;
+  final String statut;
+  final DateTime createdAt;
+  final double orderAmount;
+  final String orderStatus;
+
+  CancellationRequest({
+    required this.id,
+    required this.orderId,
+    required this.motif,
+    required this.statut,
+    required this.createdAt,
+    required this.orderAmount,
+    required this.orderStatus,
+  });
+
+  factory CancellationRequest.fromApiResponse(Map<String, dynamic> apiData) {
+    return CancellationRequest(
+      id: apiData['id']?.toString() ?? '',
+      orderId: apiData['order_id']?.toString() ?? '',
+      motif: apiData['motif'] ?? '',
+      statut: apiData['statut'] ?? '',
+      createdAt: _parseDate(apiData['created_at']),
+      orderAmount: (apiData['order_amount'] ?? 0).toDouble(),
+      orderStatus: apiData['order_status'] ?? '',
+    );
+  }
+
+  static DateTime _parseDate(dynamic dateValue) {
+    if (dateValue == null) return DateTime.now();
+    
+    if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    
+    return DateTime.now();
+  }
+}
+
 class OrderHistoryItem {
   final String id;
   final DateTime date;
@@ -15,8 +61,8 @@ class OrderHistoryItem {
   final int pointsUtilises;
   final String? firebaseOrderId;
   final String? djangoOrderId;
-  final String? etat; // ADD THIS - order status
-  final bool? confirmation; // ADD THIS - order confirmation
+  final String? etat;
+  final bool? confirmation;
 
   OrderHistoryItem({
     required this.id,
@@ -27,8 +73,8 @@ class OrderHistoryItem {
     required this.pointsUtilises,
     this.firebaseOrderId,
     this.djangoOrderId,
-    this.etat, // ADD THIS
-    this.confirmation, // ADD THIS
+    this.etat,
+    this.confirmation,
   }) : date = DateTime.now();
 
   OrderHistoryItem.withDate({
@@ -41,8 +87,8 @@ class OrderHistoryItem {
     required this.pointsUtilises,
     this.firebaseOrderId,
     this.djangoOrderId,
-    this.etat, // ADD THIS
-    this.confirmation, // ADD THIS
+    this.etat,
+    this.confirmation,
   });
 
   Map<String, dynamic> toMap() {
@@ -56,29 +102,27 @@ class OrderHistoryItem {
       'pointsUtilises': pointsUtilises,
       'firebaseOrderId': firebaseOrderId,
       'djangoOrderId': djangoOrderId,
-      'etat': etat, // ADD THIS
-      'confirmation': confirmation, // ADD THIS
+      'etat': etat,
+      'confirmation': confirmation,
     };
   }
 
- factory OrderHistoryItem.fromApiResponse(Map<String, dynamic> apiData, MenuService menuService) {
+  factory OrderHistoryItem.fromApiResponse(Map<String, dynamic> apiData, MenuService menuService) {
     List<CartItem> items = [];
     
     if (apiData['items'] != null && apiData['items'] is List) {
       for (var itemData in apiData['items']) {
         final menuItem = menuService.findItemById(itemData['id']?.toString() ?? '');
         
-        // Clean the dish name
         String dishName = itemData['nom'] ?? menuItem?.nom ?? 'Plat inconnu';
-        dishName = _cleanTextEncoding(dishName); // Apply encoding fix
+        dishName = _cleanTextEncoding(dishName);
         
         items.add(CartItem(
           id: itemData['id']?.toString() ?? '',
-          nom: dishName, // Use the cleaned name
+          nom: dishName,
           prix: (itemData['prix'] ?? menuItem?.prix ?? 0).toDouble(),
           quantite: itemData['quantite'] ?? 1,
           imageUrl: menuItem?.image ?? 'assets/images/placeholder.jpg',
-          pointsFidelite: itemData['pointsFidelite'] ?? menuItem?.pointsFidelite ?? 0,
         ));
       }
     }
@@ -98,7 +142,6 @@ class OrderHistoryItem {
     );
   }
 
-  // Make the helper method static so it can be used in the factory
   static String _cleanTextEncoding(String text) {
     if (text.isEmpty) return text;
     
@@ -132,7 +175,6 @@ class OrderHistoryItem {
     return cleanedText;
   }
 
-
   static DateTime _parseDate(dynamic dateValue) {
     if (dateValue == null) return DateTime.now();
     
@@ -158,24 +200,27 @@ class OrderHistoryItem {
       pointsUtilises: map['pointsUtilises'] ?? 0,
       firebaseOrderId: map['firebaseOrderId'],
       djangoOrderId: map['djangoOrderId'],
-      etat: map['etat'], // ADD THIS
-      confirmation: map['confirmation'], // ADD THIS
+      etat: map['etat'],
+      confirmation: map['confirmation'],
     );
   }
 }
 
 class OrderHistoryService extends ChangeNotifier {
   List<OrderHistoryItem> _orders = [];
+  List<CancellationRequest> _cancellationRequests = [];
   MenuService? _menuService;
   UserService? _userService;
   bool _isLoading = false;
+  bool _isLoadingCancellations = false;
   String? _errorMessage;
 
+  // Getters
   List<OrderHistoryItem> get orders => [..._orders];
+  List<CancellationRequest> get cancellationRequests => [..._cancellationRequests];
   bool get isLoading => _isLoading;
+  bool get isLoadingCancellations => _isLoadingCancellations;
   String? get errorMessage => _errorMessage;
-
-
 
   void setMenuService(MenuService menuService) {
     _menuService = menuService;
@@ -184,30 +229,30 @@ class OrderHistoryService extends ChangeNotifier {
   void setUserService(UserService userService) {
     _userService = userService;
   }
-   String _cleanTextEncoding(String text) {
+
+  String _cleanTextEncoding(String text) {
     if (text.isEmpty) return text;
     
-    // Common encoding fixes
     final Map<String, String> replacements = {
-      'â': "'",           // Most common apostrophe corruption
-      'Ã¢': "'",          // UTF-8 double encoding
-      'â€™': "'",         // Smart quote corruption
-      'Ã©': 'é',          // e with accent
-      'Ã¨': 'è',          // e with grave accent
-      'Ã ': 'à',          // a with grave accent
-      'Ã§': 'ç',          // c with cedilla
-      'â€œ': '"',         // Opening quote
-      'â€': '"',          // Closing quote
-      'â€"': '—',         // Em dash
-      'â€"': '–',         // En dash
-      'dâ': "d'",         // Specific fix for "d'Agneau"
-      'lâ': "l'",         // Fix for "l'..."
-      'câ': "c'",         // Fix for "c'..."
-      'mâ': "m'",         // Fix for "m'..."
-      'nâ': "n'",         // Fix for "n'..."
-      'sâ': "s'",         // Fix for "s'..."
-      'tâ': "t'",         // Fix for "t'..."
-      'jâ': "j'",         // Fix for "j'..."
+      'â': "'",
+      'Ã¢': "'",
+      'â€™': "'",
+      'Ã©': 'é',
+      'Ã¨': 'è',
+      'Ã ': 'à',
+      'Ã§': 'ç',
+      'â€œ': '"',
+      'â€': '"',
+      'â€"': '—',
+      'â€"': '–',
+      'dâ': "d'",
+      'lâ': "l'",
+      'câ': "c'",
+      'mâ': "m'",
+      'nâ': "n'",
+      'sâ': "s'",
+      'tâ': "t'",
+      'jâ': "j'",
     };
     
     String cleanedText = text;
@@ -234,13 +279,10 @@ class OrderHistoryService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Enhanced debugging for authentication status
       debugPrint('🔍 UserService Debug Info:');
       debugPrint('  - isAuthenticated: ${_userService!.isAuthenticated}');
       debugPrint('  - isGuest: ${_userService!.isGuest}');
       debugPrint('  - isLoggedIn: ${_userService!.isLoggedIn}');
-      debugPrint('  - nomUtilisateur: ${_userService!.nomUtilisateur}');
-      debugPrint('  - email: ${_userService!.email}');
 
       if (!_userService!.isAuthenticated || _userService!.isGuest) {
         _errorMessage = 'Utilisateur non connecté ou invité';
@@ -252,11 +294,6 @@ class OrderHistoryService extends ChangeNotifier {
 
       final token = _userService!.idToken;
       
-      debugPrint('🔑 Token Debug:');
-      debugPrint('  - Token exists: ${token != null}');
-      debugPrint('  - Token length: ${token?.length ?? 0}');
-      debugPrint('  - Token preview: ${token?.substring(0, token.length > 20 ? 20 : token.length) ?? 'null'}...');
-      
       if (token == null) {
         _errorMessage = 'Token d\'authentification manquant';
         debugPrint('❌ No authentication token available');
@@ -265,14 +302,10 @@ class OrderHistoryService extends ChangeNotifier {
         return;
       }
       
-      // CHANGED: Update the endpoint to match your Django backend
       debugPrint('🌐 Making API request to: http://127.0.0.1:8000/api/table/orders/');
-      debugPrint('📤 Request headers:');
-      debugPrint('  - Authorization: Bearer ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
-      debugPrint('  - Content-Type: application/json');
       
       final response = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/table/orders/'), // CHANGED: from kitchen to table
+        Uri.parse('http://127.0.0.1:8000/api/table/orders/'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -282,7 +315,6 @@ class OrderHistoryService extends ChangeNotifier {
 
       debugPrint('📥 Response received:');
       debugPrint('  - Status Code: ${response.statusCode}');
-      debugPrint('  - Headers: ${response.headers}');
       debugPrint('  - Body: ${response.body}');
 
       if (response.statusCode == 200) {
@@ -311,31 +343,129 @@ class OrderHistoryService extends ChangeNotifier {
         }
       } else if (response.statusCode == 403) {
         debugPrint('❌ 403 Forbidden - Token might be invalid or expired');
-        debugPrint('Response body: ${response.body}');
-        
-        // Try to parse error response
         try {
           final errorData = json.decode(response.body);
           _errorMessage = 'Accès refusé: ${errorData['detail'] ?? errorData['error'] ?? 'Token invalide'}';
         } catch (e) {
           _errorMessage = 'Accès refusé - Veuillez vous reconnecter';
         }
-        
-        // Suggest user to re-login
-        debugPrint('💡 Suggestion: User should try logging out and back in');
       } else if (response.statusCode == 401) {
         debugPrint('❌ 401 Unauthorized - Authentication failed');
         _errorMessage = 'Session expirée - Veuillez vous reconnecter';
       } else {
         _errorMessage = 'Erreur serveur: ${response.statusCode}';
         debugPrint('❌ Server error: ${response.statusCode}');
-        debugPrint('Error response: ${response.body}');
       }
     } catch (e) {
       _errorMessage = 'Erreur réseau: $e';
       debugPrint('❌ Network error: $e');
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+
+    // Load cancellation requests
+    if (!_userService!.isGuest && _userService!.isAuthenticated) {
+      await loadCancellationRequests();
+    }
+  }
+
+  Future<bool> cancelOrder(String orderId, {String? motif}) async {
+    if (_userService == null || !_userService!.isAuthenticated) {
+      debugPrint('❌ User not authenticated');
+      return false;
+    }
+
+    try {
+      final token = _userService!.idToken;
+      if (token == null) {
+        debugPrint('❌ No authentication token');
+        return false;
+      }
+
+      debugPrint('🚫 Cancelling order: $orderId');
+      
+      final response = await http.patch(
+        Uri.parse('http://127.0.0.1:8000/api/table/orders/$orderId/cancel/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          'motif': motif ?? 'Annulation demandée par le client'
+        }),
+      );
+
+      debugPrint('📥 Cancel response: ${response.statusCode}');
+      debugPrint('📥 Cancel body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        debugPrint('✅ Order cancellation successful: ${responseData['message']}');
+        
+        // Refresh the order history to get updated status
+        await loadOrderHistory();
+        return true;
+      } else {
+        debugPrint('❌ Cancel failed: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Cancel error: $e');
+      return false;
+    }
+  }
+
+  Future<void> loadCancellationRequests() async {
+    if (_userService == null || !_userService!.isAuthenticated) {
+      debugPrint('❌ User not authenticated for cancellation requests');
+      return;
+    }
+
+    _isLoadingCancellations = true;
+    notifyListeners();
+
+    try {
+      final token = _userService!.idToken;
+      if (token == null) {
+        debugPrint('❌ No token for cancellation requests');
+        _isLoadingCancellations = false;
+        notifyListeners();
+        return;
+      }
+
+      debugPrint('🔍 Loading cancellation requests...');
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/table/cancellation-requests/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      debugPrint('📥 Cancellation requests response: ${response.statusCode}');
+      debugPrint('📥 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requestsData = json.decode(response.body);
+        debugPrint('✅ Found ${requestsData.length} cancellation requests');
+        
+        _cancellationRequests = requestsData
+            .map((requestData) => CancellationRequest.fromApiResponse(requestData))
+            .toList();
+            
+        _cancellationRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        
+      } else {
+        debugPrint('❌ Failed to load cancellation requests: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading cancellation requests: $e');
+    } finally {
+      _isLoadingCancellations = false;
       notifyListeners();
     }
   }
@@ -348,8 +478,8 @@ class OrderHistoryService extends ChangeNotifier {
     int pointsUtilises = 0,
     String? firebaseOrderId,
     String? djangoOrderId,
-    String? etat, // ADD THIS
-    bool? confirmation, // ADD THIS
+    String? etat,
+    bool? confirmation,
   }) {
     _orders.insert(0, OrderHistoryItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -360,14 +490,15 @@ class OrderHistoryService extends ChangeNotifier {
       pointsUtilises: pointsUtilises,
       firebaseOrderId: firebaseOrderId,
       djangoOrderId: djangoOrderId,
-      etat: etat, // ADD THIS
-      confirmation: confirmation, // ADD THIS
+      etat: etat,
+      confirmation: confirmation,
     ));
     notifyListeners();
   }
 
   void clearHistory() {
     _orders.clear();
+    _cancellationRequests.clear();
     notifyListeners();
   }
 }

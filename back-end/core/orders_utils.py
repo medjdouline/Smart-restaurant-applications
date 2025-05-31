@@ -59,12 +59,16 @@ def get_order_details(order_doc, db):
                 client_data = client_doc.to_dict()
                 order['client'] = {
                     'username': client_data.get('username', 'Unknown'),
-                    'id': order['idC']
+                    'id': order['idC'],
+                    'allergies': client_data.get('allergies', []),
+                    'restrictions': client_data.get('restrictions', [])
                 }
             else:
                 order['client'] = {
                     'username': 'Client inconnu',
-                    'id': order['idC']
+                    'id': order['idC'],
+                    'allergies': [],
+                    'restrictions': []
                 }
         
         # Process table info with robust handling

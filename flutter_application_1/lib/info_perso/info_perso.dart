@@ -194,63 +194,6 @@ class _InfoPersoPageState extends State<InfoPersoPage> {
                               ),
                             ),
                             const SizedBox(height: 30),
-                            GestureDetector(
-                              onTap: _pickImage,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    width: 120,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: const Color(0xFF325434),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: _profileImage != null
-                                        ? ClipOval(
-                                            child: Image.file(
-                                              _profileImage!,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.person,
-                                            size: 50,
-                                            color: Color(0xFF730406),
-                                          ),
-                                  ),
-                                  Positioned(
-                                    bottom: 5,
-                                    right: 5,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF325434),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.camera_alt,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Photo de profil (optionnelle)',
-                              style: TextStyle(
-                                color: Color(0xFF730406),
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 30),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               decoration: BoxDecoration(

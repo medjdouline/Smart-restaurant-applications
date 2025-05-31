@@ -32,15 +32,35 @@ class _MenuAccompagnementPageState extends State<MenuAccompagnementPage> {
     return favorisService.estFavori(id);
   }
 
-  void _toggleFavorite(FavorisService favorisService, Item accompagnement) {
-    setState(() {
-      if (_isFavorite(favorisService, accompagnement.id)) {
-        favorisService.supprimerFavori(accompagnement.id);
-      } else {
-        favorisService.ajouterFavori(accompagnement.toMap());
-      }
-    });
+void _toggleFavorite(FavorisService favorisService, Item plat) async {
+  try {
+    await favorisService.toggleFavoriAPI(plat.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(favorisService.estFavori(plat.id) 
+          ? 'Added to favorites' 
+          : 'Removed from favorites'),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
+// Dans menu_favoris.dart
+Future<void> _refreshFavorites() async {
+  try {
+    await Provider.of<FavorisService>(context, listen: false).chargerFavorisAPI();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur de chargement: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -262,13 +282,6 @@ class _MenuAccompagnementPageState extends State<MenuAccompagnementPage> {
                       overflow: TextOverflow.ellipsis),
                   Text('${accompagnement.prix} DA', style: const TextStyle(color: Colors.white, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Colors.amber, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${accompagnement.pointsFidelite} pts', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -342,9 +355,6 @@ class _MenuAccompagnementPageState extends State<MenuAccompagnementPage> {
                         const SizedBox(height: 10),
                         Text('${_selectedAccompagnement!.prix} DA',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
-                        const SizedBox(height: 10),
-                        Text('Points fidélité: ${_selectedAccompagnement!.pointsFidelite}',
-                            style: const TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -426,13 +436,7 @@ class _MenuAccompagnementPageState extends State<MenuAccompagnementPage> {
                               nom: _selectedAccompagnement!.nom,
                               prix: _selectedAccompagnement!.prix.toDouble(),
                               imageUrl: _selectedAccompagnement!.image,
-                              pointsFidelite: _selectedAccompagnement!.pointsFidelite,
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(
-                                  '${_selectedAccompagnement!.nom} ajouté à votre commande (+${_selectedAccompagnement!.pointsFidelite} pts)'),
-                              duration: const Duration(seconds: 1),
-                            ));
                             _closeDetails();
                           },
                           child: const Text('COMMANDER', style: TextStyle(fontSize: 18)),

@@ -8,7 +8,6 @@ class Item {
   final String description;
   final String ingredients;
   final String image;
-  final int pointsFidelite;
 
   Item({
     required this.id,
@@ -18,10 +17,8 @@ class Item {
     required this.description,
     required this.ingredients,
     required this.image,
-    required this.pointsFidelite,
   });
 
-  // Depuis une Map
   factory Item.fromMap(Map<String, dynamic> map) {
     return Item(
       id: map['id'] ?? '',
@@ -31,11 +28,9 @@ class Item {
       description: map['description'] ?? '',
       ingredients: map['ingredients'] ?? '',
       image: map['image'] ?? '',
-      pointsFidelite: map['pointsFidelite'] ?? 0,
     );
   }
 
-  // Depuis un DocumentSnapshot Firestore
   factory Item.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Item(
@@ -46,11 +41,9 @@ class Item {
       description: data['description'] ?? '',
       ingredients: data['ingredients'] ?? '',
       image: data['image'] ?? '',
-      pointsFidelite: data['pointsFidelite'] ?? 0,
     );
   }
 
-  // Convertir en Map
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -60,11 +53,9 @@ class Item {
       'description': description,
       'ingredients': ingredients,
       'image': image,
-      'pointsFidelite': pointsFidelite,
     };
   }
 
-  // Pour Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'nom': nom,
@@ -73,7 +64,6 @@ class Item {
       'description': description,
       'ingredients': ingredients,
       'image': image,
-      'pointsFidelite': pointsFidelite,
     };
   }
 }

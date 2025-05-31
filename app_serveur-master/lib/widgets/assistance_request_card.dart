@@ -95,23 +95,6 @@ class AssistanceRequestCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (request.userId.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    color: Theme.of(context).colorScheme.secondary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Client #${request.userId}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

@@ -29,7 +29,6 @@ import 'order_history_service.dart';
 import 'rating_service.dart';
 import 'points_fidelite_widget.dart';
 import '../services/menu_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
@@ -50,14 +49,12 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => FavorisService()),
-        ChangeNotifierProvider(create: (_) => UserService()),
+        ChangeNotifierProvider(create: (context) => UserService()),
+        ChangeNotifierProvider(create: (context) => MenuService()),
+        ChangeNotifierProvider(create: (context) => FavorisService()),
         ChangeNotifierProvider(create: (_) => CartService()),
         ChangeNotifierProvider(create: (_) => OrderHistoryService()),
         ChangeNotifierProvider(create: (_) => RatingService()),
-        ChangeNotifierProvider(create: (_) => MenuService()),
-        ChangeNotifierProvider(create: (_) => MenuService()),
-        ChangeNotifierProvider(create: (_) => OrderHistoryService()),
       ],
       child: const MyApp(),
     ),
@@ -67,34 +64,47 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<UserService>(
-      builder: (context, userService, _) {
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Good Taste Restaurant',
-          theme: ThemeData(
-            primarySwatch: Colors.brown,
-            fontFamily: 'Roboto',
-            pageTransitionsTheme: const PageTransitionsTheme(
-              builders: {
-                TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              },
-            ),
-            colorScheme: ColorScheme.fromSwatch(
-              primarySwatch: Colors.brown,
-              accentColor: const Color(0xFF4CAF50),
-            ),
-          ),
-          home: _getHomeScreen(userService),
-          routes: _getAppRoutes(),
-          onGenerateRoute: (settings) => _onGenerateRoute(settings, context),
-        );
-      },
-    );
+
+ @override
+Widget build(BuildContext context) {
+  return Consumer3<UserService, MenuService, FavorisService>(
+    builder: (context, userService, menuService, favorisService, _) {
+      // Lier MenuService à FavorisService
+      favorisService.setMenuService(menuService);
+      // Lier UserService à FavorisService - ADD THIS LINE
+      favorisService.setUserService(userService);
+      
+      // Charger les favoris au démarrage si l'utilisateur est connecté
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (userService.isLoggedIn && !userService.isGuest) {
+    favorisService.chargerFavorisAPI();
   }
+});
+      
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Feuille de l\'Aures',
+        theme: ThemeData(
+          primarySwatch: Colors.brown,
+          fontFamily: 'Roboto',
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+              TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            },
+          ),
+          colorScheme: ColorScheme.fromSwatch(
+            primarySwatch: Colors.brown,
+            accentColor: const Color(0xFF4CAF50),
+          ),
+        ),
+        home: _getHomeScreen(userService),
+        routes: _getAppRoutes(),
+        onGenerateRoute: (settings) => _onGenerateRoute(settings, context),
+      );
+    },
+  );
+}
 
   Widget _getHomeScreen(UserService userService) {
     if (userService.isLoggedIn) {

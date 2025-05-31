@@ -138,7 +138,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
       children: [
         Row(
           children: [
-            Icon(icon, color: iconColor ?? const Color(0xFFAA2C10), size: 18),
+            Icon(icon, color: iconColor ?? Colors.blue, size: 18),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -231,7 +231,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
                                 style: TextStyle(
                                   color: table.isOccupied 
                                       ? Colors.red 
-                                      : (table.isReserved ? const Color(0xFFAA2C10) : Colors.green),
+                                      : (table.isReserved ? Colors.blue : Colors.green),
                                   fontWeight: FontWeight.w500,
                                   fontSize: 16,
                                 ),
@@ -262,7 +262,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
                       Container(
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFAA2C10).withAlpha((0.1 * 255).toInt()),
+                          color: Colors.blue.withAlpha((0.1 * 255).toInt()),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -322,7 +322,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
                               'Statut', 
                               table.reservationStatus ?? 'Non spécifié', 
                               Icons.info_outline,
-                              table.reservationStatus == 'Confirmée' ? Colors.green : const Color(0xFFAA2C10) ),
+                              table.reservationStatus == 'Confirmée' ? Colors.green : Colors.blue ),
                           ],
                         ),
                       ),
@@ -361,7 +361,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFAA2C10),
+                          backgroundColor: Colors.blue,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         child: const Text(
@@ -409,7 +409,7 @@ Widget _buildReservationInfo(String title, String value, IconData icon, [Color? 
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: table.isOccupied ? Colors.red : AppTheme.secondaryColor,
+                          backgroundColor: table.isOccupied ? Colors.red : Colors.green,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         child: Text(

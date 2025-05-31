@@ -69,36 +69,39 @@ class _FavorisPageState extends State<FavorisPage> {
                           ],
                         ),
                       ),
-                      _buildFavorisSection(favorisService, ratingService),
-                      if (platsFavoris.isEmpty)
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.favorite_border,
-                                size: 60,
-                                color: Color(0xFFB24516),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Vous n\'avez pas encore de favoris',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFB24516),
+                      if (platsFavoris.isNotEmpty)
+                        _buildFavorisSection(favorisService, ratingService)
+                      else
+                        Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.favorite_border,
+                                  size: 60,
+                                  color: Color(0xFFB24516),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Explorez notre menu et ajoutez des plats à vos favoris',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: const Color(0xFFB24516).withOpacity(0.8),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Vous n\'avez pas encore de favoris',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFFB24516),
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Explorez notre menu et ajoutez des plats à vos favoris',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: const Color(0xFFB24516).withOpacity(0.8),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                     ],
@@ -123,16 +126,24 @@ class _FavorisPageState extends State<FavorisPage> {
         ),
         child: Consumer<FavorisService>(
           builder: (context, favorisService, child) {
-            return ListView.builder(
+            return Padding(
               padding: const EdgeInsets.all(16),
-              itemCount: favorisService.platsFavoris.length,
-              itemBuilder: (context, index) {
-                final plat = favorisService.platsFavoris[index];
-                return GestureDetector(
-                  onTap: () => _showPlatDetails(plat, ratingService),
-                  child: _buildPlatCard(plat, favorisService),
-                );
-              },
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3, // Changed from 2 to 3 for smaller cards
+                  childAspectRatio: 0.75, // Adjusted aspect ratio
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: favorisService.platsFavoris.length,
+                itemBuilder: (context, index) {
+                  final plat = favorisService.platsFavoris[index];
+                  return GestureDetector(
+                    onTap: () => _showPlatDetails(plat, ratingService),
+                    child: _buildPlatCard(plat, favorisService),
+                  );
+                },
+              ),
             );
           },
         ),
@@ -142,7 +153,7 @@ class _FavorisPageState extends State<FavorisPage> {
 
   Widget _buildPlatCard(Map<String, dynamic> plat, FavorisService favorisService) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      width: 170, // Fixed width similar to accueil cards
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
@@ -157,50 +168,81 @@ class _FavorisPageState extends State<FavorisPage> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
-            child: Image.asset(
-              plat['image'] ?? 'assets/placeholder.jpg',
-              height: 150,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: Colors.grey.shade300,
-                  height: 150,
-                  child: const Center(child: Icon(Icons.image_not_supported, color: Colors.grey)),
-                );
-              },
-            ),
-          ),
-          Positioned.fill(
             child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.center,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
-                ),
+              color: Colors.grey.shade300,
+              child: Image.asset(
+                plat['image'] ?? 'assets/placeholder.jpg',
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Icon(
+                      Icons.fastfood,
+                      color: Colors.white,
+                      size: 50,
+                    ),
+                  );
+                },
               ),
             ),
           ),
-          Positioned(
-            top: 10,
-            right: 10,
-            child: IconButton(
-              icon: const Icon(Icons.favorite, color: Colors.red),
-              onPressed: () => favorisService.supprimerFavori(plat['id']),
+          
+          // Gradient overlay similar to accueil
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.7),
+                ],
+              ),
             ),
           ),
-          Positioned(
-            bottom: 10,
-            left: 10,
-            right: 10,
+          
+          // Content overlay
+          Padding(
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Favorite button at top right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    GestureDetector(
+                      onTap: () async {
+                        try {
+                          await favorisService.supprimerFavoriAPI(plat['id']);
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Erreur: $e')),
+                          );
+                        }
+                      },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.favorite,
+                            color: Colors.red,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Text at bottom similar to accueil
                 Text(
                   plat['nom'] ?? 'Nom inconnu',
                   style: const TextStyle(
@@ -208,15 +250,25 @@ class _FavorisPageState extends State<FavorisPage> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${plat['prix']?.toStringAsFixed(2) ?? '0.00'} €',
+                  '${plat['prix']?.toStringAsFixed(0) ?? '0'} DA',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
+                ),
+                const SizedBox(height: 4),
+                // Star rating similar to accueil
+                Row(
+                  children: [
+                    Icon(Icons.star, color: Colors.amber, size: 12),
+                    const SizedBox(width: 4),
+                  ],
                 ),
               ],
             ),
@@ -245,7 +297,7 @@ class _FavorisPageState extends State<FavorisPage> {
               margin: const EdgeInsets.all(20),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFE6C89D),
+                color: const Color(0xFFDFB976), // Changed to match accueil
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
@@ -255,11 +307,23 @@ class _FavorisPageState extends State<FavorisPage> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(15),
-                        child: Image.asset(
-                          plat['image'],
+                        child: Container(
                           height: 200,
                           width: double.infinity,
-                          fit: BoxFit.cover,
+                          color: Colors.grey.shade300,
+                          child: Image.asset(
+                            plat['image'] ?? 'assets/placeholder.jpg',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Icon(
+                                  Icons.fastfood,
+                                  color: Colors.white,
+                                  size: 50,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                       Positioned(
@@ -269,9 +333,14 @@ class _FavorisPageState extends State<FavorisPage> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.favorite, color: Colors.red),
-                              onPressed: () {
-                                favorisService.supprimerFavori(plat['id']);
-                                _closeDetails();
+                              onPressed: () async {
+                                try {
+                                  await favorisService.supprimerFavoriAPI(plat['id']);
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Erreur: $e')),
+                                  );
+                                }
                               },
                             ),
                             const SizedBox(width: 10),
@@ -286,20 +355,20 @@ class _FavorisPageState extends State<FavorisPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    plat['nom'],
+                    plat['nom'] ?? 'Nom inconnu',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF2E7D32),
+                      color: Color(0xFFB24516), // Changed to match accueil
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '${plat['prix'].toStringAsFixed(2)}€',
+                    '${plat['prix']?.toStringAsFixed(0) ?? '0'} DA',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.brown,
+                      color: Color(0xFF3A5311), // Changed to match accueil
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -338,7 +407,7 @@ class _FavorisPageState extends State<FavorisPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      plat['description'],
+                      plat['description'] ?? 'Aucune description disponible',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 16),
                     ),
@@ -355,7 +424,7 @@ class _FavorisPageState extends State<FavorisPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      plat['ingredients'],
+                      plat['ingredients'] ?? 'Ingrédients non spécifiés',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 16),
                     ),
@@ -417,9 +486,8 @@ class _FavorisPageState extends State<FavorisPage> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 40, vertical: 15),
+                      backgroundColor: const Color(0xFF3A5311), // Changed to match accueil
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
@@ -428,15 +496,13 @@ class _FavorisPageState extends State<FavorisPage> {
                       cartService.addItem(
                         id: plat['id'],
                         nom: plat['nom'],
-                        prix: plat['prix'],
+                        prix: plat['prix']?.toDouble() ?? 0.0,
                         imageUrl: plat['image'],
-                        pointsFidelite: plat['pointsFidelite'] ?? 0, // Ajout du paramètre requis
                       );
                       
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(
-                              '${plat['nom']} ajouté à votre commande'),
+                          content: Text('${plat['nom']} ajouté à votre commande'),
                           duration: const Duration(seconds: 1),
                         ),
                       );
@@ -444,7 +510,7 @@ class _FavorisPageState extends State<FavorisPage> {
                     },
                     child: const Text(
                       'COMMANDER',
-                      style: TextStyle(fontSize: 18),
+                      style: TextStyle(fontSize: 18, color: Colors.white),
                     ),
                   ),
                 ],

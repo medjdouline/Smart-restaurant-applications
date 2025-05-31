@@ -21,32 +21,130 @@ import firebase_admin.auth
 logger = logging.getLogger(__name__)
 db = firebase_config.get_db()
 
-# Predefined options
 ALLOWED_PREFERENCES = [
-    'Soupes et Potages', 'Salades et Crudités', 'Poissons et Fruit de mer',
-    'Cuisine traditionnelle', 'Viandes', 'Sandwichs et burgers', 'Végétarien',
+    'Soupes et Potages', 'Salades et Crudités', 'Poissons et Fruits de mer',
+    'Cuisine traditionnelle', 'Viandes', 'Sandwichs et burgers', 'Végétariens',
     'Crémes et Mousses', 'Pâtisseries', 'Fruits et Sorbets'
 ]
 
 ALLOWED_ALLERGIES = [
     'Fraise', 'Fruit exotique', 'Gluten', 'Arachides', 'Noix', 'Lupin',
-    'Champignons', 'Moutarde', 'Soja', 'Crustacés', 'Poisson', 'Lactose', 'Œufs'
+    'Champignons', 'Moutarde', 'Soja', 'Crustacés', 'Poissons', 'Lactose', 'Oeuf'
 ]
 
 ALLOWED_RESTRICTIONS = [
     'Végétarien', 'Végétalien', 'Keto', 'Sans lactose', 'Sans gluten'
 ]
-#client
+
+def ensure_utf8_string(text):
+    """Fonction pour s'assurer que le texte est correctement encodé en UTF-8"""
+    if isinstance(text, str):
+        # Si c'est déjà une string, on la renvoie telle quelle
+        return text
+    elif isinstance(text, bytes):
+        # Si c'est des bytes, on les décode en UTF-8
+        try:
+            return text.decode('utf-8')
+        except UnicodeDecodeError:
+            # Si le décodage UTF-8 échoue, essayer latin-1 puis encoder en UTF-8
+            return text.decode('latin-1').encode('utf-8').decode('utf-8')
+    else:
+        return str(text)
+
+def clean_list_encoding(items_list):
+    """Nettoie une liste de strings pour l'encodage UTF-8"""
+    if not isinstance(items_list, list):
+        return items_list
+    
+    cleaned_list = []
+    for item in items_list:
+        cleaned_item = ensure_utf8_string(item)
+        cleaned_list.append(cleaned_item)
+    
+    return cleaned_list
+
+def validate_and_process_allergies(allergies):
+    """Valide et traite les allergies, permettant les nouvelles entrées personnalisées"""
+    if not allergies:
+        return [], []
+    
+    processed_allergies = []
+    custom_allergies = []
+    
+    for allergy in allergies:
+        allergy_clean = allergy.strip()
+        if not allergy_clean:
+            continue
+            
+        # Vérifier si c'est une allergie prédéfinie
+        if allergy_clean in ALLOWED_ALLERGIES:
+            processed_allergies.append(allergy_clean)
+        else:
+            # Tentative de correspondance approximative pour les problèmes d'encodage
+            found_match = False
+            for allowed_allergy in ALLOWED_ALLERGIES:
+                # Comparaison insensible aux accents et espaces
+                if (allergy_clean.lower().replace('é', 'e').replace('è', 'e') == 
+                    allowed_allergy.lower().replace('é', 'e').replace('è', 'e')):
+                    found_match = True
+                    processed_allergies.append(allowed_allergy)
+                    break
+            
+            if not found_match:
+                # C'est une allergie personnalisée
+                if len(allergy_clean) > 50:  # Limite de longueur
+                    return None, f"L'allergie '{allergy_clean}' est trop longue (max 50 caractères)"
+                custom_allergies.append(allergy_clean)
+                processed_allergies.append(allergy_clean)
+    
+    return processed_allergies, custom_allergies
+
+def validate_and_process_restrictions(restrictions):
+    """Valide et traite les restrictions alimentaires, permettant les nouvelles entrées personnalisées"""
+    if not restrictions:
+        return [], []
+    
+    processed_restrictions = []
+    custom_restrictions = []
+    
+    for restriction in restrictions:
+        restriction_clean = restriction.strip()
+        if not restriction_clean:
+            continue
+            
+        # Vérifier si c'est une restriction prédéfinie
+        if restriction_clean in ALLOWED_RESTRICTIONS:
+            processed_restrictions.append(restriction_clean)
+        else:
+            # Tentative de correspondance approximative pour les problèmes d'encodage
+            found_match = False
+            for allowed_restriction in ALLOWED_RESTRICTIONS:
+                # Comparaison insensible aux accents et espaces
+                if (restriction_clean.lower().replace('é', 'e').replace('è', 'e') == 
+                    allowed_restriction.lower().replace('é', 'e').replace('è', 'e')):
+                    found_match = True
+                    processed_restrictions.append(allowed_restriction)
+                    break
+            
+            if not found_match:
+                # C'est une restriction personnalisée
+                if len(restriction_clean) > 50:  # Limite de longueur
+                    return None, f"La restriction '{restriction_clean}' est trop longue (max 50 caractères)"
+                custom_restrictions.append(restriction_clean)
+                processed_restrictions.append(restriction_clean)
+    
+    return processed_restrictions, custom_restrictions
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def client_signup_step1(request):
     try:
-        email = request.data.get('email')
-        password = request.data.get('password')
-        password_confirmation = request.data.get('password_confirmation')  # Added password confirmation
-        username = request.data.get('username')
-        phone_number = request.data.get('phone_number')
+        # Récupération des données avec nettoyage d'encodage
+        email = ensure_utf8_string(request.data.get('email', ''))
+        password = ensure_utf8_string(request.data.get('password', ''))
+        password_confirmation = ensure_utf8_string(request.data.get('password_confirmation', ''))
+        username = ensure_utf8_string(request.data.get('username', ''))
+        phone_number = ensure_utf8_string(request.data.get('phone_number', ''))
 
         if not all([email, password, password_confirmation, username, phone_number]):
             return Response(
@@ -74,11 +172,10 @@ def client_signup_step1(request):
             'username': username,
             'phone_number': phone_number,
             'step': 1
-            # Removed password storage for security - Firebase already handles authentication
         })
 
         # Temporary claims (not fully authenticated)
-        set_custom_claims(user.uid, {
+        auth.set_custom_user_claims(user.uid, {
             'role': 'unverified_client',
             'signup_complete': False
         })
@@ -104,9 +201,9 @@ def client_signup_step1(request):
 @permission_classes([AllowAny])
 def client_signup_step2(request):
     try:
-        uid = request.data.get('uid')
-        birthdate = request.data.get('birthdate')
-        gender = request.data.get('gender')
+        uid = ensure_utf8_string(request.data.get('uid', ''))
+        birthdate = ensure_utf8_string(request.data.get('birthdate', ''))
+        gender = ensure_utf8_string(request.data.get('gender', ''))
 
         if not all([uid, birthdate, gender]):
             return Response(
@@ -138,7 +235,7 @@ def client_signup_step2(request):
         })
 
         return Response({
-            'uid': uid,  # Return UID for next step
+            'uid': uid,
             'message': 'Proceed to Step 3: Allergies'
         })
 
@@ -154,13 +251,20 @@ def client_signup_step2(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# Step 3 – Allergies
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def client_signup_step3(request):
     try:
-        uid = request.data.get('uid')
-        allergies = request.data.get('allergies', [])
+        uid = ensure_utf8_string(request.data.get('uid', ''))
+        allergies_raw = request.data.get('allergies', [])
+        
+        # Nettoie l'encodage des allergies
+        allergies = clean_list_encoding(allergies_raw)
+        
+        # Debug pour voir ce qui est reçu
+        logger.info(f"UID reçu: {uid}")
+        logger.info(f"Allergies brutes reçues: {allergies_raw}")
+        logger.info(f"Allergies nettoyées: {allergies}")
 
         if not uid:
             return Response(
@@ -176,24 +280,38 @@ def client_signup_step3(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        # Validate allergies if any are provided
-        if allergies:
-            invalid_allergies = [a for a in allergies if a not in ALLOWED_ALLERGIES]
-            if invalid_allergies:
-                return Response(
-                    {'error': f'Invalid allergies: {", ".join(invalid_allergies)}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # Valider et traiter les allergies (permet les nouvelles allergies personnalisées)
+        processed_allergies, custom_allergies = validate_and_process_allergies(allergies)
+        
+        if processed_allergies is None:  # Erreur de validation
+            return Response(
+                {'error': custom_allergies},  # custom_allergies contient le message d'erreur
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        db.collection('temp_signups').document(uid).update({
-            'allergies': allergies,
+        # Sauvegarder les données
+        update_data = {
+            'allergies': processed_allergies,
             'step': 3
-        })
+        }
+        
+        # Si il y a des allergies personnalisées, les sauvegarder séparément pour tracking
+        if custom_allergies:
+            update_data['custom_allergies'] = custom_allergies
+            logger.info(f"Nouvelles allergies personnalisées ajoutées: {custom_allergies}")
 
-        return Response({
-            'uid': uid,  # Return UID for next step
-            'message': 'Proceed to Step 4: Dietary Restrictions'
-        })
+        db.collection('temp_signups').document(uid).update(update_data)
+
+        response_data = {
+            'uid': uid,
+            'message': 'Proceed to Step 4: Dietary Restrictions',
+            'processed_allergies': processed_allergies
+        }
+        
+        if custom_allergies:
+            response_data['new_allergies_added'] = custom_allergies
+
+        return Response(response_data)
 
     except Exception as e:
         logger.error(f"Signup Step 3 (Allergies) failed: {str(e)}")
@@ -202,13 +320,20 @@ def client_signup_step3(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# Step 4 – Restrictions / Régimes
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def client_signup_step4(request):
     try:
-        uid = request.data.get('uid')
-        restrictions = request.data.get('restrictions', [])
+        uid = ensure_utf8_string(request.data.get('uid', ''))
+        restrictions_raw = request.data.get('restrictions', [])
+        
+        # Nettoie l'encodage des restrictions
+        restrictions = clean_list_encoding(restrictions_raw)
+        
+        # Debug pour voir ce qui est reçu
+        logger.info(f"UID reçu: {uid}")
+        logger.info(f"Restrictions brutes reçues: {restrictions_raw}")
+        logger.info(f"Restrictions nettoyées: {restrictions}")
 
         if not uid:
             return Response(
@@ -224,24 +349,38 @@ def client_signup_step4(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        # Validate restrictions if any are provided
-        if restrictions:
-            invalid_restrictions = [r for r in restrictions if r not in ALLOWED_RESTRICTIONS]
-            if invalid_restrictions:
-                return Response(
-                    {'error': f'Invalid restrictions: {", ".join(invalid_restrictions)}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # Valider et traiter les restrictions (permet les nouvelles restrictions personnalisées)
+        processed_restrictions, custom_restrictions = validate_and_process_restrictions(restrictions)
+        
+        if processed_restrictions is None:  # Erreur de validation
+            return Response(
+                {'error': custom_restrictions},  # custom_restrictions contient le message d'erreur
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        db.collection('temp_signups').document(uid).update({
-            'restrictions': restrictions,
+        # Sauvegarder les données
+        update_data = {
+            'restrictions': processed_restrictions,
             'step': 4
-        })
+        }
+        
+        # Si il y a des restrictions personnalisées, les sauvegarder séparément pour tracking
+        if custom_restrictions:
+            update_data['custom_restrictions'] = custom_restrictions
+            logger.info(f"Nouvelles restrictions personnalisées ajoutées: {custom_restrictions}")
 
-        return Response({
-            'uid': uid,  # Return UID for next step
-            'message': 'Proceed to Step 5: Preferences'
-        })
+        db.collection('temp_signups').document(uid).update(update_data)
+
+        response_data = {
+            'uid': uid,
+            'message': 'Proceed to Step 5: Preferences',
+            'processed_restrictions': processed_restrictions
+        }
+        
+        if custom_restrictions:
+            response_data['new_restrictions_added'] = custom_restrictions
+
+        return Response(response_data)
 
     except Exception as e:
         logger.error(f"Signup Step 4 (Restrictions) failed: {str(e)}")
@@ -250,13 +389,21 @@ def client_signup_step4(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# Step 5 – Préférences + Création finale
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def client_signup_step5(request):
     try:
-        uid = request.data.get('uid')
-        preferences = request.data.get('preferences', [])
+        uid = ensure_utf8_string(request.data.get('uid', ''))
+        preferences_raw = request.data.get('preferences', [])
+        
+        # Nettoie l'encodage des préférences
+        preferences = clean_list_encoding(preferences_raw)
+        
+        # Debug pour voir ce qui est reçu
+        logger.info(f"UID reçu: {uid}")
+        logger.info(f"Préférences brutes reçues: {preferences_raw}")
+        logger.info(f"Préférences nettoyées: {preferences}")
+        logger.info(f"Préférences autorisées: {ALLOWED_PREFERENCES}")
 
         if not uid:
             return Response(
@@ -278,11 +425,32 @@ def client_signup_step5(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate preferences
-        invalid_prefs = [p for p in preferences if p not in ALLOWED_PREFERENCES]
+        # Validate preferences avec correction d'encodage
+        invalid_prefs = []
+        for preference in preferences:
+            # Comparaison stricte ET comparaison sans accents comme fallback
+            if preference not in ALLOWED_PREFERENCES:
+                # Tentative de correspondance approximative pour les problèmes d'encodage
+                found_match = False
+                for allowed_pref in ALLOWED_PREFERENCES:
+                    # Comparaison insensible aux accents et espaces
+                    if (preference.lower().strip().replace('é', 'e').replace('è', 'e').replace('ê', 'e') == 
+                        allowed_pref.lower().strip().replace('é', 'e').replace('è', 'e').replace('ê', 'e')):
+                        found_match = True
+                        # Remplace par la version correcte
+                        preferences[preferences.index(preference)] = allowed_pref
+                        break
+                
+                if not found_match:
+                    invalid_prefs.append(preference)
+        
         if invalid_prefs:
             return Response(
-                {'error': f'Invalid preferences: {", ".join(invalid_prefs)}'},
+                {
+                    'error': f'Invalid preferences: {", ".join(invalid_prefs)}',
+                    'received_preferences': preferences,
+                    'allowed_preferences': ALLOWED_PREFERENCES
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -319,9 +487,6 @@ def client_signup_step5(request):
         })
 
         # Générer un ID token directement
-        # Note: Cette partie nécessite une petite astuce car Firebase Admin ne fournit pas directement cette fonctionnalité
-        # On va créer un custom token et l'utiliser pour obtenir un ID token via l'API Firebase REST
-        
         # 1. Créer un custom token
         custom_token = auth.create_custom_token(uid)
         

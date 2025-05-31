@@ -495,7 +495,6 @@ class _AcceuilInviteState extends State<AcceuilInvite> {
                         nom: _selectedPlat!.nom,
                         prix: _selectedPlat!.prix.toDouble(),
                         imageUrl: _selectedPlat!.image,
-                        pointsFidelite: _selectedPlat!.pointsFidelite,
                       );
                       
                       if (userService.isGuest) {

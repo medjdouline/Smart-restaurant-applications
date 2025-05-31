@@ -32,15 +32,35 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
     return favorisService.estFavori(id);
   }
 
-  void _toggleFavorite(FavorisService favorisService, Item plat) {
-    setState(() {
-      if (_isFavorite(favorisService, plat.id)) {
-        favorisService.supprimerFavori(plat.id);
-      } else {
-        favorisService.ajouterFavori(plat.toMap());
-      }
-    });
+void _toggleFavorite(FavorisService favorisService, Item plat) async {
+  try {
+    await favorisService.toggleFavoriAPI(plat.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(favorisService.estFavori(plat.id) 
+          ? 'Added to favorites' 
+          : 'Removed from favorites'),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
+// Dans menu_favoris.dart
+Future<void> _refreshFavorites() async {
+  try {
+    await Provider.of<FavorisService>(context, listen: false).chargerFavorisAPI();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erreur de chargement: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -213,13 +233,10 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
         width: 150,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          image: plat.image.startsWith('assets/')
-              ? DecorationImage(
-                  image: AssetImage(plat.image),
-                  fit: BoxFit.cover,
-                )
-              : null,
-          color: !plat.image.startsWith('assets/') ? Colors.grey[300] : null,
+          image: DecorationImage(
+            image: AssetImage(plat.image),
+            fit: BoxFit.cover,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -240,10 +257,6 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                 ),
               ),
             ),
-            if (!plat.image.startsWith('assets/'))
-              Center(
-                child: _buildPlaceholderImage(),
-              ),
             Positioned(
               top: 5,
               right: 5,
@@ -269,31 +282,12 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                       overflow: TextOverflow.ellipsis),
                   Text('${plat.prix} DA', style: const TextStyle(color: Colors.white, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Colors.amber, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${plat.pointsFidelite} pts', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ],
-                  ),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPlaceholderImage() {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: Colors.grey[400],
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(Icons.fastfood, color: Colors.white, size: 30),
     );
   }
 
@@ -320,21 +314,12 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                     children: [
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                        child: _selectedPlat!.image.startsWith('assets/')
-                            ? Image.asset(
-                                _selectedPlat!.image,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              )
-                            : Container(
-                                height: 200,
-                                width: double.infinity,
-                                color: Colors.grey[300],
-                                child: Center(
-                                  child: _buildPlaceholderImage(),
-                                ),
-                              ),
+                        child: Image.asset(
+                          _selectedPlat!.image,
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                       Positioned(
                         top: 10,
@@ -371,9 +356,7 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                         Text('${_selectedPlat!.prix} DA',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.brown)),
                         const SizedBox(height: 10),
-                        Text('Points fidélité: ${_selectedPlat!.pointsFidelite}',
-                            style: const TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
+                        
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -452,15 +435,10 @@ class _MenuPlatsPageState extends State<MenuPlatsPage> {
                             cartService.addItem(
                               id: _selectedPlat!.id,
                               nom: _selectedPlat!.nom,
-                              prix: _selectedPlat!.prix.toDouble(),
+                              prix: _selectedPlat!.prix.toDouble(), // ✅ Correction ici
                               imageUrl: _selectedPlat!.image,
-                              pointsFidelite: _selectedPlat!.pointsFidelite,
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(
-                                  '${_selectedPlat!.nom} ajouté à votre commande (+${_selectedPlat!.pointsFidelite} pts)'),
-                              duration: const Duration(seconds: 1),
-                            ));
+
                             _closeDetails();
                           },
                           child: const Text('COMMANDER', style: TextStyle(fontSize: 18)),

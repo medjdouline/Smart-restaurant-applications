@@ -28,19 +28,18 @@ urlpatterns = [
     path('orders/<str:order_id>/', views.get_order_details, name='get_order_details'), #details d'une commande dans l'historique
     path('orders/<str:order_id>/delete/', views.delete_order_history, name='delete_order_history'), #marakch dayrha
     # Favorites endpoints
-    path('favorites/', views.get_favorites, name='get_favorites'), #get (recevoir) favoris
+    path('temp/favorites/', views.get_favorites, name='get_favorites'), #get (recevoir) favoris
     path('favorites/add/<str:plat_id>/', views.add_favorite, name='add_favorite'), #ajouter aux favoris
     path('favorites/remove/<str:plat_id>/', views.remove_favorite, name='remove_favorite'), #supprimer des favoris
     
     
     # Menu endpoints
-    path('menus/', views.get_menus, name='get_menus'), 
-    path('categories/', views.get_categories, name='get_categories'),  #renvoie les categories
-    path('categories/<str:category_id>/subcategories/', views.get_category_subcategories, name='get_category_subcategories'),
-    path('subcategories/<str:subcategory_id>/items/', views.get_subcategory_items, name='get_subcategory_items'),
+
  #specifie categorie et renvoie les sous categories
     path('plats/<str:plat_id>/', views.get_plat_details, name='get_plat_details'), #renvoie des detils d'un plat
     path('plats/<str:plat_id>/similar/', views.get_similar_dishes, name='get_similar_dishes'), #marakch dayrha
+    path('orders/<str:order_id>/cancel/', views.cancel_order, name='cancel_order'), # Annuler une commande
+    path('cancellation-requests/', views.get_cancellation_requests, name='get_cancellation_requests'), # Voir les demandes d'annulation
 
    
     
