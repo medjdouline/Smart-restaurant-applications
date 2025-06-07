@@ -1,0 +1,1 @@
+This repository houses a Professional End-of-Study Project (PFE) for the License degree at USTHB (University of Science and Technology Houari Boumediene). The project features innovative digital solutions for restaurant management and customer engagement.
